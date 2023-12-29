@@ -8,7 +8,8 @@ defmodule Zedex do
 
   Example:
     `replace([
-      {{SomeModule, :some_func, 1}, {ReplacementModule, :another_func, 1}}
+      {{SomeModule, :some_func, 1}, {ReplacementModule, :another_func_1, 1}},
+      {{AnotherModule, :their_func, 2}, {ReplacementModule, :another_func_2, 2}}
      ])`
   """
   defdelegate replace(replacements), to: Replacer

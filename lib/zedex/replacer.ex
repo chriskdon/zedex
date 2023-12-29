@@ -14,9 +14,17 @@ defmodule Zedex.Replacer do
   end
 
   def replace(replacements) do
-    :ok = assert_replacements(replacements)
+    replacements
+    |> Enum.group_by(fn {{module, _, _}, _} -> module end)
+    |> Enum.each(fn {mod, mod_replacements} ->
+      :ok = replace_module(mod, mod_replacements)
+    end)
 
-    [{{module, _, _}, _} | _] = replacements
+    :ok
+  end
+
+  defp replace_module(module, replacements) do
+    :ok = assert_replacements(replacements)
 
     # Allow the module to be modified
     true = :code.unstick_mod(module)
@@ -24,7 +32,6 @@ defmodule Zedex.Replacer do
     {original_module_code, patched_module_code} = generate_patched_module(module, replacements)
 
     :ok = store_original_module(module, original_module_code)
-
     :ok = load_beam_code(module, "hooked_#{module}", patched_module_code)
 
     :ok
