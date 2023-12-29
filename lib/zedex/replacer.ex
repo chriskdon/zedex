@@ -4,6 +4,8 @@ defmodule Zedex.Replacer do
   # TODO: This should be in a genserver so there aren't multiple
   #       processes trying to replace modules.
 
+  @original_function_prefix "__zedex_replacer_original__"
+
   def setup do
     # FIXME
     :ets.new(__MODULE__, [:named_table, :public])
@@ -43,6 +45,15 @@ defmodule Zedex.Replacer do
 
   def reset(module) when is_atom(module) do
     reset([module])
+  end
+
+  def original_function_mfa(module, function, arity) do
+    original_fun = String.to_atom("#{@original_function_prefix}#{function}")
+
+    case :erlang.function_exported(module, original_fun, arity) do
+      true -> {module, original_fun, arity}
+      _ -> {module, function, arity}
+    end
   end
 
   defp store_original_module(module, beam_code) do
@@ -201,7 +212,7 @@ defmodule Zedex.Replacer do
     replacedFunc0 = :merl.quote(func_charlist)
     replacedFunc1 = :erl_syntax.add_ann(ann, replacedFunc0)
 
-    originalFuncNewName = :erlang.list_to_atom(:io_lib.format("__hook_original__~s", [oFunc]))
+    originalFuncNewName = String.to_atom("#{@original_function_prefix}#{oFunc}")
 
     # Rename original function so it can be used if needed
     originalFunc0 =

@@ -99,6 +99,27 @@ defmodule Zedex.ReplacerTest do
     end
   end
 
+  describe "original_function_mfa/3" do
+    test "returns original function MFA when replaced" do
+      :ok =
+        Replacer.replace([
+          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}}
+        ])
+
+      {m, f, _arity} = mfa = Replacer.original_function_mfa(TestModule1, :test_func_1, 1)
+
+      assert {Zedex.Test.TestModule1, :__zedex_replacer_original__test_func_1, 1} == mfa
+      assert "[#{TestModule1}] Test Func 1 - 123" == apply(m, f, [123])
+    end
+
+    test "returns function MFA when not-replaced" do
+      {m, f, _arity} = mfa = Replacer.original_function_mfa(TestModule1, :test_func_1, 1)
+
+      assert {Zedex.Test.TestModule1, :test_func_1, 1} == mfa
+      assert "[#{TestModule1}] Test Func 1 - 123" == apply(m, f, [123])
+    end
+  end
+
   # Used as a replacement function
   def constant_uniform(_n), do: 1
 end

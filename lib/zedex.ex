@@ -1,4 +1,6 @@
 defmodule Zedex do
+  alias Zedex.Replacer
+
   @type replacement :: {original :: mfa(), replacement :: mfa()}
 
   @doc """
@@ -9,30 +11,26 @@ defmodule Zedex do
       {{SomeModule, :some_func, 1}, {ReplacementModule, :another_func, 1}}
      ])`
   """
-  defdelegate replace(replacements), to: Zedex.Replacer
+  defdelegate replace(replacements), to: Replacer
 
   @doc """
   Reset all modules back to their original unhooked state.
   """
   @spec reset() :: :ok
-  defdelegate reset, to: Zedex.Replacer
+  defdelegate reset, to: Replacer
 
   @doc """
   Reset the module back to its original unhooked state.
   """
   @spec reset(modules :: list(module()) | module()) :: :ok
-  defdelegate reset(modules), to: Zedex.Replacer
+  defdelegate reset(modules), to: Replacer
 
   @doc """
   Call the original version of a function.
   """
   @spec apply_original(module(), atom(), list(any())) :: any()
   def apply_original(module, function, args) do
-    hook_original_fun = String.to_atom("__hook_original__#{function}")
-
-    case :erlang.function_exported(module, hook_original_fun, Enum.count(args)) do
-      true -> apply(module, hook_original_fun, args)
-      _ -> apply(module, function, args)
-    end
+    {m, f, _arity} = Replacer.original_function_mfa(module, function, Enum.count(args))
+    apply(m, f, args)
   end
 end
