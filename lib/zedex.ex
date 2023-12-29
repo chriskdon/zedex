@@ -12,6 +12,7 @@ defmodule Zedex do
       {{AnotherModule, :their_func, 2}, {ReplacementModule, :another_func_2, 2}}
      ])`
   """
+  @spec replace(list(replacement())) :: :ok
   defdelegate replace(replacements), to: Replacer
 
   @doc """
