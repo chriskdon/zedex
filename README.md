@@ -69,7 +69,7 @@ end
 ```
 
 > [!NOTE]
-> Eventually this will be published to Hex once there is a minimal feature base.
+> Eventually this will be published to Hex once there is a minimal feature set.
 
 Run `mix deps.get`.
 
@@ -80,9 +80,12 @@ Run `mix deps.get`.
 
 ```elixir
 # replace :erlang.uniform/1 with MyRandom.uniform/1
-Zedex.replace([
+:ok = Zedex.replace([
   {{:random, :uniform, 1}, {MyRandom, :constant_uniform, 1}}
 ])
+
+# reset all modules back to their original versions
+:ok = Zedex.reset()
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
