@@ -1,5 +1,5 @@
 defmodule Zedex.Debug do
-  @doc false
+  @moduledoc false
 
   def erl_to_ast(erl_str) do
     {:ok, expr_tokens, _} = :erl_scan.string(String.to_charlist(erl_str))

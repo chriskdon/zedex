@@ -1,5 +1,5 @@
 defmodule Zedex.Replacer do
-  @doc false
+  @moduledoc false
 
   # TODO: This should be in a genserver so there aren't multiple
   #       processes trying to replace modules.

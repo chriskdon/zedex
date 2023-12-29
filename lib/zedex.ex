@@ -1,4 +1,8 @@
 defmodule Zedex do
+  @moduledoc """
+  Replace functions from other modules with your own.
+  """
+
   alias Zedex.Replacer
 
   @type replacement :: {original :: mfa(), replacement :: mfa()}

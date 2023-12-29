@@ -8,7 +8,20 @@ defmodule Zedex.MixProject do
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
-      deps: deps()
+      deps: deps(),
+
+      # Docs
+      name: "Zedex",
+      source_url: "https://github.com/chriskdon/zedex",
+      homepage_url: "https://github.com/chriskdon/zedex",
+      docs: [
+        main: "readme", # The main page in the docs
+        extras: [
+          "README.md",
+          "CHANGELOG.md"
+        ],
+        formatters: ["html"]
+      ],
     ]
   end
 
@@ -24,6 +37,7 @@ defmodule Zedex.MixProject do
   defp deps do
     [
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
     ]
   end
 
