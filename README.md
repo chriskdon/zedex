@@ -41,7 +41,7 @@
 ## About the Project
 
 This library allows patching and replacing functions in existing modules with
-your own, effectively turning them into Zombies (or Zeds) 🧟. This is useful if
+your own, effectively turning them into zombies (or zeds) 🧟. This is useful if
 you need to hook into some existing code that has no other way to be modified.
 
 ⚠ You probably don't want to use this library in live production code. Its original
