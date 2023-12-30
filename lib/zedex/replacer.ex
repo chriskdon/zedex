@@ -3,6 +3,8 @@ defmodule Zedex.Replacer do
 
   use GenServer
 
+  alias Zedex.Store
+
   # Prefix to use for the original function implementation
   @original_function_prefix "__zedex_replacer_original__"
 
@@ -12,9 +14,7 @@ defmodule Zedex.Replacer do
 
   @impl GenServer
   def init([]) do
-    table = :ets.new(__MODULE__, [:named_table, :set, :private])
-
-    {:ok, %{table: table}}
+    {:ok, %{}}
   end
 
   def replace(replacements) do
@@ -46,7 +46,7 @@ defmodule Zedex.Replacer do
 
   @impl GenServer
   def handle_call(:reset_all, _from, state) do
-    reset_modules = get_all_original_modules()
+    reset_modules = Store.get_all_original_modules()
     ^reset_modules = do_reset(reset_modules)
 
     {:reply, reset_modules, state}
@@ -66,7 +66,7 @@ defmodule Zedex.Replacer do
 
   defp do_reset(modules) when is_list(modules) do
     Enum.each(modules, fn mod ->
-      {:beam_code, beam_code} = get_original_module(mod)
+      {:ok, {:beam_code, beam_code}} = Store.get_original_module(mod)
 
       # TODO: Get the actual original filename
       :ok = load_beam_code(mod, "#{mod}", beam_code)
@@ -87,7 +87,7 @@ defmodule Zedex.Replacer do
 
     {original_module_code, patched_module_code} = generate_patched_module(module, replacements)
 
-    :ok = store_original_module(module, original_module_code)
+    :ok = Store.store_original_module(module, original_module_code)
     :ok = load_beam_code(module, "hooked_#{module}", patched_module_code)
 
     :ok
@@ -100,21 +100,6 @@ defmodule Zedex.Replacer do
       true -> {module, original_fun, arity}
       _ -> {module, function, arity}
     end
-  end
-
-  defp store_original_module(module, beam_code) do
-    true = :ets.insert(__MODULE__, {{:original_module, module}, {:beam_code, beam_code}})
-    :ok
-  end
-
-  defp get_original_module(module) do
-    [{_, {:beam_code, _} = beam_code}] = :ets.lookup(__MODULE__, {:original_module, module})
-    beam_code
-  end
-
-  defp get_all_original_modules() do
-    :ets.match(__MODULE__, {{:original_module, :"$1"}, :_})
-    |> Enum.concat()
   end
 
   defp generate_patched_module(module, replacements) do
