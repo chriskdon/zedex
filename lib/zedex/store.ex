@@ -4,7 +4,7 @@ defmodule Zedex.Store do
   use GenServer
 
   def start_link([]) do
-    GenServer.start_link(__MODULE__, [], [name: __MODULE__])
+    GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
 
   @impl GenServer
@@ -22,7 +22,7 @@ defmodule Zedex.Store do
     GenServer.call(__MODULE__, {:get_original_module, module})
   end
 
-  def get_all_original_modules() do
+  def get_all_original_modules do
     GenServer.call(__MODULE__, :get_all_original_modules)
   end
 

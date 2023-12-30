@@ -9,7 +9,7 @@ defmodule Zedex.Application do
   def start(_type, _args) do
     children = [
       {Zedex.Store, []},
-      {Zedex.Replacer, []},
+      {Zedex.Replacer, []}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

@@ -19,14 +19,14 @@ defmodule Zedex.Debug do
     :io.fwrite(~c"~s~n", [erlang_code])
   end
 
-  def inspect_ast(ast, opts \\ []) do
+  def inspect_ast(ast) do
     :code.ensure_loaded(:erl_syntax)
     :code.ensure_loaded(:erl_prettypr)
 
     # erlang_code = :erl_prettypr.format(ast) |> :binary.list_to_bin()
 
     IO.puts("----\nAST")
-    IO.inspect(ast, opts)
+    IO.puts(ast)
 
     IO.puts("ERLANG")
     :merl.print(ast)
