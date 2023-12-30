@@ -7,7 +7,9 @@ defmodule Zedex.ReplacerTest do
   doctest Zedex
 
   setup do
-    :ok = Zedex.reset()
+    Zedex.reset()
+
+    :ok
   end
 
   describe "replace/1" do
@@ -30,7 +32,7 @@ defmodule Zedex.ReplacerTest do
 
       assert 1 == :rand.uniform(1000)
 
-      :ok = Replacer.reset(:rand)
+      assert [:rand] = Replacer.reset(:rand)
     end
 
     test "replaces multiple modules" do
@@ -62,7 +64,9 @@ defmodule Zedex.ReplacerTest do
       assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
       assert "[#{TestModule1}] Test Func 2 - 456" == TestModule2.test_func_1(456)
 
-      :ok = Replacer.reset()
+      reset_modules = [TestModule1, TestModule2]
+
+      assert reset_modules == Replacer.reset(reset_modules)
 
       assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
       assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
@@ -83,7 +87,9 @@ defmodule Zedex.ReplacerTest do
       assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
       assert "[#{TestModule1}] Test Func 2 - 456" == TestModule2.test_func_1(456)
 
-      :ok = Replacer.reset([TestModule1, TestModule2])
+      reset_modules = [TestModule1, TestModule2]
+
+      assert reset_modules == Replacer.reset(reset_modules)
 
       assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
       assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
@@ -99,7 +105,7 @@ defmodule Zedex.ReplacerTest do
 
       assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
 
-      :ok = Replacer.reset(TestModule1)
+      assert [TestModule1] == Replacer.reset(TestModule1)
 
       assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
     end

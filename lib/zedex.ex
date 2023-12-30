@@ -22,13 +22,13 @@ defmodule Zedex do
   @doc """
   Reset all modules back to their original unhooked state.
   """
-  @spec reset() :: :ok
+  @spec reset() :: [module()]
   defdelegate reset, to: Replacer
 
   @doc """
   Reset the module back to its original unhooked state.
   """
-  @spec reset(modules :: list(module()) | module()) :: :ok
+  @spec reset(modules :: list(module()) | module()) :: [module()]
   defdelegate reset(modules), to: Replacer
 
   @doc """

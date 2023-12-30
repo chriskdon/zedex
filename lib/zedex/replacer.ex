@@ -1,26 +1,82 @@
 defmodule Zedex.Replacer do
   @moduledoc false
 
-  # TODO: This should be in a genserver so there aren't multiple
-  #       processes trying to replace modules.
+  use GenServer
 
+  # Prefix to use for the original function implementation
   @original_function_prefix "__zedex_replacer_original__"
 
-  def setup do
-    # FIXME
-    :ets.new(__MODULE__, [:named_table, :public])
+  def start_link([]) do
+    GenServer.start_link(__MODULE__, [], name: __MODULE__)
+  end
 
-    :ok
+  @impl GenServer
+  def init([]) do
+    table = :ets.new(__MODULE__, [:named_table, :set, :private])
+
+    {:ok, %{table: table}}
   end
 
   def replace(replacements) do
+    GenServer.call(__MODULE__, {:replace, replacements})
+  end
+
+  def reset do
+    GenServer.call(__MODULE__, :reset_all)
+  end
+
+  def reset(modules) when is_list(modules) do
+    GenServer.call(__MODULE__, {:reset, modules})
+  end
+
+  def reset(module) when is_atom(module) do
+    reset([module])
+  end
+
+  @impl GenServer
+  def handle_call({:replace, replacements}, _from, state) do
     replacements
     |> Enum.group_by(fn {{module, _, _}, _} -> module end)
     |> Enum.each(fn {mod, mod_replacements} ->
       :ok = replace_module(mod, mod_replacements)
     end)
 
-    :ok
+    {:reply, :ok, state}
+  end
+
+  @impl GenServer
+  def handle_call(:reset_all, _from, state) do
+    reset_modules = get_all_original_modules()
+    ^reset_modules = do_reset(reset_modules)
+
+    {:reply, reset_modules, state}
+  end
+
+  @impl GenServer
+  def handle_call({:reset, reset_modules}, _from, state) do
+    ^reset_modules = do_reset(reset_modules)
+
+    {:reply, reset_modules, state}
+  end
+
+  @impl GenServer
+  def handle_cast(_request, state) do
+    {:noreply, state}
+  end
+
+  defp do_reset(modules) when is_list(modules) do
+    Enum.each(modules, fn mod ->
+      {:beam_code, beam_code} = get_original_module(mod)
+
+      # TODO: Get the actual original filename
+      :ok = load_beam_code(mod, "#{mod}", beam_code)
+    end)
+
+    modules
+  end
+
+  defp do_reset(module) when is_atom(module) do
+    reset([module])
   end
 
   defp replace_module(module, replacements) do
@@ -35,23 +91,6 @@ defmodule Zedex.Replacer do
     :ok = load_beam_code(module, "hooked_#{module}", patched_module_code)
 
     :ok
-  end
-
-  def reset() do
-    reset(get_all_original_modules())
-  end
-
-  def reset(modules) when is_list(modules) do
-    Enum.each(modules, fn mod ->
-      {:beam_code, beam_code} = get_original_module(mod)
-
-      # TODO: Get the actual original filename
-      :ok = load_beam_code(mod, "#{mod}", beam_code)
-    end)
-  end
-
-  def reset(module) when is_atom(module) do
-    reset([module])
   end
 
   def original_function_mfa(module, function, arity) do

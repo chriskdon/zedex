@@ -7,12 +7,8 @@ defmodule Zedex.Application do
 
   @impl true
   def start(_type, _args) do
-    # FIXME: Use a gen server for the ETS store
-    :ok = Zedex.Replacer.setup()
-
     children = [
-      # Starts a worker by calling: Zedex.Worker.start_link(arg)
-      # {Zedex.Worker, arg}
+      {Zedex.Replacer, []}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

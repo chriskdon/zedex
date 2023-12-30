@@ -6,7 +6,9 @@ defmodule ZedexTest do
   doctest Zedex
 
   setup do
-    :ok = Zedex.reset()
+    Zedex.reset()
+
+    :ok
   end
 
   describe "replace/1" do
@@ -33,7 +35,7 @@ defmodule ZedexTest do
 
       assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
 
-      :ok = Zedex.reset()
+      Zedex.reset()
 
       assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
     end
@@ -45,15 +47,11 @@ defmodule ZedexTest do
     test "resets a list of modules back to their original state" do
       :ok =
         Zedex.replace([
-          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}}
-        ])
-
-      :ok =
-        Zedex.replace([
+          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}},
           {{TestModule2, :test_func_1, 1}, {TestModule1, :test_func_2, 1}}
         ])
 
-      :ok = Zedex.reset([TestModule1, TestModule2])
+      Zedex.reset([TestModule1, TestModule2])
 
       assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
       assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)

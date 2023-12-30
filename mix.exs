@@ -15,13 +15,14 @@ defmodule Zedex.MixProject do
       source_url: "https://github.com/chriskdon/zedex",
       homepage_url: "https://github.com/chriskdon/zedex",
       docs: [
-        main: "readme", # The main page in the docs
+        # The main page in the docs
+        main: "readme",
         extras: [
           "README.md",
           "CHANGELOG.md"
         ],
         formatters: ["html"]
-      ],
+      ]
     ]
   end
 
@@ -29,7 +30,7 @@ defmodule Zedex.MixProject do
   def application do
     [
       extra_applications: [:logger, :syntax_tools],
-      mod: {Zedex.Application, []},
+      mod: {Zedex.Application, []}
     ]
   end
 
@@ -37,7 +38,7 @@ defmodule Zedex.MixProject do
   defp deps do
     [
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
     ]
   end
 
