@@ -12,49 +12,101 @@ defmodule ZedexTest do
   end
 
   describe "replace/1" do
-    # These are smoke tests, the complete tests are in `Zedex.ReplacerTest`
-
     test "replaces a function" do
-      :ok =
-        Zedex.replace([
-          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}}
-        ])
-
-      assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
-    end
-  end
-
-  describe "reset/0" do
-    # These are smoke tests, the complete tests are in `Zedex.ReplacerTest`
-
-    test "resets all modules back to their original state" do
-      :ok =
-        Zedex.replace([
-          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}}
-        ])
-
-      assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
-
-      Zedex.reset()
-
       assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
+
+      :ok =
+        Zedex.replace([
+          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}}
+        ])
+
+      assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
     end
-  end
 
-  describe "reset/1" do
-    # These are smoke tests, the complete tests are in `Zedex.ReplacerTest`
+    test "replaces a core erlang function" do
+      :ok =
+        Zedex.replace([
+          {{:rand, :uniform, 1}, {__MODULE__, :constant_uniform, 1}}
+        ])
 
-    test "resets a list of modules back to their original state" do
+      assert 1 == :rand.uniform(1000)
+
+      assert [:rand] = Zedex.reset(:rand)
+    end
+
+    test "replaces multiple modules" do
+      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
+      assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
+
       :ok =
         Zedex.replace([
           {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}},
           {{TestModule2, :test_func_1, 1}, {TestModule1, :test_func_2, 1}}
         ])
 
-      Zedex.reset([TestModule1, TestModule2])
+      assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
+      assert "[#{TestModule1}] Test Func 2 - 456" == TestModule2.test_func_1(456)
+    end
+  end
+
+  describe "reset/0" do
+    test "resets all modules back to their original state" do
+      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
+      assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
+
+      :ok =
+        Zedex.replace([
+          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}},
+          {{TestModule2, :test_func_1, 1}, {TestModule1, :test_func_2, 1}}
+        ])
+
+      assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
+      assert "[#{TestModule1}] Test Func 2 - 456" == TestModule2.test_func_1(456)
+
+      reset_modules = [TestModule1, TestModule2]
+
+      assert reset_modules == Zedex.reset(reset_modules)
 
       assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
       assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
+    end
+  end
+
+  describe "reset/1" do
+    test "resets a list of modules back to their original state" do
+      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
+      assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
+
+      :ok =
+        Zedex.replace([
+          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}},
+          {{TestModule2, :test_func_1, 1}, {TestModule1, :test_func_2, 1}}
+        ])
+
+      assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
+      assert "[#{TestModule1}] Test Func 2 - 456" == TestModule2.test_func_1(456)
+
+      reset_modules = [TestModule1, TestModule2]
+
+      assert reset_modules == Zedex.reset(reset_modules)
+
+      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
+      assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
+    end
+
+    test "resets a module back to its original state" do
+      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
+
+      :ok =
+        Zedex.replace([
+          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}}
+        ])
+
+      assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
+
+      assert [TestModule1] == Zedex.reset(TestModule1)
+
+      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
     end
   end
 
@@ -75,4 +127,7 @@ defmodule ZedexTest do
       assert 3 == Zedex.apply_original(Enum, :count, [[1, 2, 3]])
     end
   end
+
+  # Used as a replacement function
+  def constant_uniform(_n), do: 1
 end
