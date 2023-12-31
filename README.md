@@ -30,10 +30,7 @@
       <a href="#getting-started">Getting Started</a>
     </li>
     <li><a href="#usage">Usage</a></li>
-    <!-- <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#contributing">Contributing</a></li> -->
     <li><a href="#license">License</a></li>
-    <!-- <li><a href="#contact">Contact</a></li> -->
   </ol>
 </details>
 
@@ -79,10 +76,13 @@ Run `mix deps.get`.
 ## Usage
 
 ```elixir
-# replace :erlang.uniform/1 with MyRandom.uniform/1
+# replace :random.uniform/1 and :random with MyRandom.uniform/1
 :ok = Zedex.replace([
-  {{:random, :uniform, 1}, {MyRandom, :constant_uniform, 1}}
+  {{:random, :uniform, 1}, {MyRandom, :constant_uniform, 1}},
+  {{:rand, :uniform, 1}, {MyRandom, :constant_uniform, 1}},
 ])
+
+:ok = Zedex.replace_with({:random, :uniform, 1}, {MyRandom, :constant_uniform, 1})
 
 # replace :erlang.uniform/1 with anonymous function
 :ok = Zedex.replace_with({:random, :uniform, 1}, fn n ->
@@ -93,37 +93,9 @@ end)
 :ok = Zedex.reset()
 ```
 
+Run `mix docs --open` for the complete documentation.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- ROADMAP -->
-<!-- ## Roadmap
-
-- [ ] ::{Feature 1}
-- [ ] ::{Feature 2}
-- [ ] ::{Feature 3}
-    - [ ] ::{Nested Feature}
-
-See the [open issues](https://github.com/chriskdon/zedex/issues)
-for a full list of proposed features (and known issues).
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p> -->
-
-<!-- CONTRIBUTING -->
-<!-- ## Contributing
-
-::{Contributions are what make the open source community such an amazing place to
-learn, inspire, and create. Any contributions you make are **greatly appreciated**.}
-
-::{If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement".
-Don't forget to give the project a star! Thanks again!}
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p> -->
 
 <!-- LICENSE -->
 ## License
@@ -131,20 +103,6 @@ Don't forget to give the project a star! Thanks again!}
 Distributed under the MIT license. See `LICENSE.txt` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- CONTACT -->
-<!-- ## Contact
-
-::{Your Name - email@example.com}
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p> -->
-
-<!-- MARKDOWN LINKS & IMAGES
-  Useful Links
-  - https://www.markdownguide.org/basic-syntax/#reference-style-links
-  - https://shields.io/
-  - https://simpleicons.org/
--->
 
 <!-- Generic Links -->
 [contributors-shield]: https://img.shields.io/github/contributors/chriskdon/zedex.svg?style=for-the-badge
