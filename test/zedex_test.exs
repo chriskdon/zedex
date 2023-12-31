@@ -48,9 +48,6 @@ defmodule ZedexTest do
     end
 
     test "replaces multiple modules" do
-      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
-      assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
-
       :ok =
         Zedex.replace([
           {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}},
@@ -59,6 +56,30 @@ defmodule ZedexTest do
 
       assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
       assert "[#{TestModule1}] Test Func 2 - 456" == TestModule2.test_func_1(456)
+    end
+
+    test "can replace with anonymous functions" do
+      :ok =
+        Zedex.replace([
+          {{TestModule1, :test_func_1, 1}, fn a ->
+            "Hello World: #{a}"
+          end},
+        ])
+
+      assert "Hello World: 123" == TestModule1.test_func_1(123)
+    end
+
+    test "can mix mfa and anonymous callbacks" do
+      :ok =
+        Zedex.replace([
+          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}},
+          {{TestModule2, :test_func_1, 1}, fn a ->
+            "Hello World: #{a}"
+          end}
+        ])
+
+      assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
+      assert "Hello World: 456" == TestModule2.test_func_1(456)
     end
   end
 
