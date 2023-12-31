@@ -44,7 +44,7 @@ defmodule Zedex.Impl.Store do
   @impl GenServer
   def handle_call({:store_patched_callback, mfa, callback}, _from, state) do
     true = :ets.insert(@callbacks_table, {mfa, callback})
-    {:reply, :ok, state}
+    {:reply, {@callbacks_table, mfa}, state}
   end
 
   @impl GenServer

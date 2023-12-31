@@ -8,13 +8,26 @@ defmodule ZedexTest do
   setup do
     Zedex.reset()
 
+    # Ensure reset worked correctly. Otherwise none of the tests may be valid.
+    assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
+    assert "[#{TestModule2}] Test Func 1 - 123" == TestModule2.test_func_1(123)
+
     :ok
+  end
+
+  describe "replace_with/2" do
+    test "replaces a function with a lambda" do
+      :ok =
+        Zedex.replace_with({TestModule1, :test_func_1, 1}, fn a ->
+          "Hello World: #{a}"
+        end)
+
+      assert "Hello World: 123" == TestModule1.test_func_1(123)
+    end
   end
 
   describe "replace/1" do
     test "replaces a function" do
-      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
-
       :ok =
         Zedex.replace([
           {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}}

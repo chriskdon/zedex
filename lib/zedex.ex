@@ -5,7 +5,8 @@ defmodule Zedex do
 
   alias Zedex.Impl.Replacer
 
-  @type replacement :: {original :: mfa(), replacement :: mfa()}
+  @type callback  :: mfa() | function()
+  @type replacement :: {original :: mfa(), replacement :: callback()}
 
   @doc """
   Replace module functions with functions from another module.
@@ -18,6 +19,9 @@ defmodule Zedex do
   """
   @spec replace(list(replacement())) :: :ok
   defdelegate replace(replacements), to: Replacer
+
+  @spec replace_with(mfa(), callback()) :: :ok
+  defdelegate replace_with(mfa, callback), to: Replacer
 
   @doc """
   Reset all modules back to their original unhooked state.

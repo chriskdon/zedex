@@ -8,8 +8,6 @@ defmodule Zedex.Impl.Replacer do
   # Prefix to use for the original function implementation
   @original_function_prefix "__zedex_replacer_original__"
 
-  @callbacks_table Store.callbacks_table()
-
   def start_link([]) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
@@ -17,6 +15,10 @@ defmodule Zedex.Impl.Replacer do
   @impl GenServer
   def init([]) do
     {:ok, %{}}
+  end
+
+  def replace_with(mfa, callback) do
+    replace([{mfa, callback}])
   end
 
   def replace(replacements) do
@@ -199,16 +201,14 @@ defmodule Zedex.Impl.Replacer do
       replacements,
       fn
         {{_o_module, _o_func, arity}, {_r_module, _r_func, arity}} -> :ok
+        {{_o_module, _o_func, arity}, callback} when is_function(callback) ->
+          case :erlang.fun_info(callback)[:arity] do
+            ^arity -> :ok
+            _ -> raise "Arity must match"
+          end
         _ -> raise "Arity must match"
       end
     )
-
-    case replacements
-         |> Enum.uniq_by(fn {{module, _, _}, _} -> module end)
-         |> Enum.count() do
-      1 -> :ok
-      _ -> raise "Too many replacement modules specified. Only 1 is supported currently."
-    end
 
     :ok
   end
@@ -232,7 +232,7 @@ defmodule Zedex.Impl.Replacer do
   defp do_replace(
          function_form,
          {original_module, original_func, arity} = mfa,
-         {replacement_module, replacement_func, arity}
+         callback
        ) do
     :erl_syntax.function_clauses(function_form)
 
@@ -244,17 +244,15 @@ defmodule Zedex.Impl.Replacer do
     # Create function with body replaced with call replacement
     args = Enum.map_join(1..arity, ",", fn i -> "Arg@#{i}" end)
 
-    # Store a callback that calls the MFA
-    Store.store_patched_callback(mfa, fn args ->
-      apply(replacement_module, replacement_func, args)
-    end)
+    {callback_table, {^original_module, ^original_func, ^arity}} =
+      Store.store_patched_callback(mfa, build_callback(callback))
 
     # We may eventually want to inline direct MFA calls for efficiency. For
     # now doing a lookup on a lambda makes other operations simpler.
     patched_func =
       """
       '#{func_name}'(#{args}) ->
-          [{_, Callback}] = ets:lookup('#{@callbacks_table}', {'#{original_module}', #{original_func}, #{arity}}),
+          [{_, Callback}] = ets:lookup('#{callback_table}', {'#{original_module}', #{original_func}, #{arity}}),
           Callback([#{args}]).
       """
 
@@ -273,5 +271,17 @@ defmodule Zedex.Impl.Replacer do
     original_func_1 = :erl_syntax.add_ann(ann, original_func_0)
 
     {replaced_func_1, {original_func_new_name, original_func_1}}
+  end
+
+  defp build_callback(callback) when is_function(callback) do
+    fn args ->
+      apply(callback, args)
+    end
+  end
+
+  defp build_callback({module, function, _arity}) do
+    fn args ->
+      apply(module, function, args)
+    end
   end
 end
