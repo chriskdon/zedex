@@ -51,7 +51,7 @@ intent is to help mock low-level Erlang operations.
 
 <!-- Tools the project is built with -->
 
-[![Elixir][Elixir-badge]][Elixir-url]
+[![Elixir][elixir-badge]][elixir-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -159,5 +159,5 @@ Distributed under the MIT license. See `LICENSE.txt` for more information.
 [license-url]: https://github.com/chriskdon/zedex/blob/main/LICENSE.txt
 
 <!-- Built With Links (see: https://shields.io/badges) -->
-[Elixir-badge]: https://img.shields.io/badge/Elixir-000000?style=for-the-badge&logoColor=white
-[Elixir-url]: https://elixir-lang.org/
+[elixir-badge]: https://img.shields.io/badge/Elixir-000000?style=for-the-badge&logoColor=white
+[elixir-url]: https://elixir-lang.org/
