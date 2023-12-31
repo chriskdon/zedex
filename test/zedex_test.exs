@@ -10,7 +10,7 @@ defmodule ZedexTest do
 
     # Ensure reset worked correctly. Otherwise none of the tests may be valid.
     assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
-    assert "[#{TestModule2}] Test Func 1 - 123" == TestModule2.test_func_1(123)
+    assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
 
     :ok
   end
@@ -39,7 +39,7 @@ defmodule ZedexTest do
     test "replaces a core erlang function" do
       :ok =
         Zedex.replace([
-          {{:rand, :uniform, 1}, {__MODULE__, :constant_uniform, 1}}
+          {{:rand, :uniform, 1}, fn _ -> 1 end}
         ])
 
       assert 1 == :rand.uniform(1000)
@@ -85,9 +85,6 @@ defmodule ZedexTest do
 
   describe "reset/0" do
     test "resets all modules back to their original state" do
-      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
-      assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
-
       :ok =
         Zedex.replace([
           {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}},
@@ -97,9 +94,7 @@ defmodule ZedexTest do
       assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
       assert "[#{TestModule1}] Test Func 2 - 456" == TestModule2.test_func_1(456)
 
-      reset_modules = [TestModule1, TestModule2]
-
-      assert reset_modules == Zedex.reset(reset_modules)
+      assert [TestModule1, TestModule2] == Zedex.reset() |> Enum.sort()
 
       assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
       assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
@@ -108,9 +103,6 @@ defmodule ZedexTest do
 
   describe "reset/1" do
     test "resets a list of modules back to their original state" do
-      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
-      assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
-
       :ok =
         Zedex.replace([
           {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}},
@@ -128,9 +120,25 @@ defmodule ZedexTest do
       assert "[#{TestModule2}] Test Func 1 - 456" == TestModule2.test_func_1(456)
     end
 
-    test "resets a module back to its original state" do
-      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
+    test "resets a partial list of modules back to their original state" do
+      :ok =
+        Zedex.replace([
+          {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}},
+          {{TestModule2, :test_func_1, 1}, {TestModule1, :test_func_2, 1}}
+        ])
 
+      assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
+      assert "[#{TestModule1}] Test Func 2 - 456" == TestModule2.test_func_1(456)
+
+      reset_modules = [TestModule1]
+
+      assert [TestModule1] == Zedex.reset(reset_modules)
+
+      assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
+      assert "[#{TestModule1}] Test Func 2 - 456" == TestModule2.test_func_1(456)
+    end
+
+    test "resets a module atom back to its original state" do
       :ok =
         Zedex.replace([
           {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}}
@@ -161,7 +169,4 @@ defmodule ZedexTest do
       assert 3 == Zedex.apply_original(Enum, :count, [[1, 2, 3]])
     end
   end
-
-  # Used as a replacement function
-  def constant_uniform(_n), do: 1
 end

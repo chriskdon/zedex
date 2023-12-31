@@ -74,6 +74,7 @@ defmodule Zedex.Impl.Replacer do
 
       # TODO: Get the actual original filename
       :ok = load_beam_code(mod, "#{mod}", beam_code)
+      :ok = Store.remove_original_module(mod)
     end)
 
     modules
