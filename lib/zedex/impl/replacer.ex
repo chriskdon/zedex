@@ -156,7 +156,13 @@ defmodule Zedex.Impl.Replacer do
     end
   end
 
-  defp handle_form_patch(:attribute, _module, form, _replacements, {start_forms, export_forms, rest}) do
+  defp handle_form_patch(
+         :attribute,
+         _module,
+         form,
+         _replacements,
+         {start_forms, export_forms, rest}
+       ) do
     case :erl_syntax.atom_value(:erl_syntax.attribute_name(form)) do
       name when name in [:file, :module] ->
         {start_forms ++ [form], export_forms, rest}
@@ -201,13 +207,17 @@ defmodule Zedex.Impl.Replacer do
     Enum.each(
       replacements,
       fn
-        {{_o_module, _o_func, arity}, {_r_module, _r_func, arity}} -> :ok
+        {{_o_module, _o_func, arity}, {_r_module, _r_func, arity}} ->
+          :ok
+
         {{_o_module, _o_func, arity}, callback} when is_function(callback) ->
           case :erlang.fun_info(callback)[:arity] do
             ^arity -> :ok
             _ -> raise "Arity must match"
           end
-        _ -> raise "Arity must match"
+
+        _ ->
+          raise "Arity must match"
       end
     )
 

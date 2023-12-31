@@ -19,7 +19,7 @@ defmodule Zedex.Impl.Store do
 
     state = %{
       original_modules_table: original_modules_table,
-      callbacks_table: callbacks_table,
+      callbacks_table: callbacks_table
     }
 
     {:ok, state}
@@ -53,7 +53,9 @@ defmodule Zedex.Impl.Store do
 
   @impl GenServer
   def handle_call({:store_original_module, module, beam_code}, _from, state) do
-    true = :ets.insert(@original_modules_table, {{:original_module, module}, {:beam_code, beam_code}})
+    true =
+      :ets.insert(@original_modules_table, {{:original_module, module}, {:beam_code, beam_code}})
+
     {:reply, :ok, state}
   end
 
@@ -65,7 +67,9 @@ defmodule Zedex.Impl.Store do
 
   @impl GenServer
   def handle_call({:get_original_module, module}, _from, state) do
-    [{_, {:beam_code, _} = beam_code}] = :ets.lookup(@original_modules_table, {:original_module, module})
+    [{_, {:beam_code, _} = beam_code}] =
+      :ets.lookup(@original_modules_table, {:original_module, module})
+
     {:reply, {:ok, beam_code}, state}
   end
 

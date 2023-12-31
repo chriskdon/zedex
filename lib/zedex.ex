@@ -5,7 +5,7 @@ defmodule Zedex do
 
   alias Zedex.Impl.Replacer
 
-  @type callback  :: mfa() | function()
+  @type callback :: mfa() | function()
   @type replacement :: {original :: mfa(), replacement :: callback()}
 
   @doc """

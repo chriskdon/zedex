@@ -61,9 +61,10 @@ defmodule ZedexTest do
     test "can replace with anonymous functions" do
       :ok =
         Zedex.replace([
-          {{TestModule1, :test_func_1, 1}, fn a ->
-            "Hello World: #{a}"
-          end},
+          {{TestModule1, :test_func_1, 1},
+           fn a ->
+             "Hello World: #{a}"
+           end}
         ])
 
       assert "Hello World: 123" == TestModule1.test_func_1(123)
@@ -73,9 +74,10 @@ defmodule ZedexTest do
       :ok =
         Zedex.replace([
           {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}},
-          {{TestModule2, :test_func_1, 1}, fn a ->
-            "Hello World: #{a}"
-          end}
+          {{TestModule2, :test_func_1, 1},
+           fn a ->
+             "Hello World: #{a}"
+           end}
         ])
 
       assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
