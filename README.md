@@ -84,6 +84,11 @@ Run `mix deps.get`.
   {{:random, :uniform, 1}, {MyRandom, :constant_uniform, 1}}
 ])
 
+# replace :erlang.uniform/1 with anonymous function
+:ok = Zedex.replace_with({:random, :uniform, 1}, fn n ->
+  1
+end)
+
 # reset all modules back to their original versions
 :ok = Zedex.reset()
 ```
