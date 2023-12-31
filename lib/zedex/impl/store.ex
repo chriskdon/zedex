@@ -37,8 +37,8 @@ defmodule Zedex.Impl.Store do
     GenServer.call(__MODULE__, {:remove_module_callbacks, module})
   end
 
-  def store_original_module(module, beam_code) do
-    GenServer.call(__MODULE__, {:store_original_module, module, beam_code})
+  def store_original_module(module, filename, beam_code) do
+    GenServer.call(__MODULE__, {:store_original_module, module, filename, beam_code})
   end
 
   def remove_original_module(module) do
@@ -79,9 +79,12 @@ defmodule Zedex.Impl.Store do
   end
 
   @impl GenServer
-  def handle_call({:store_original_module, module, beam_code}, _from, state) do
+  def handle_call({:store_original_module, module, filename, beam_code}, _from, state) do
     true =
-      :ets.insert(@original_modules_table, {{:original_module, module}, {:beam_code, beam_code}})
+      :ets.insert(
+        @original_modules_table,
+        {{:original_module, module}, {:beam_code, filename, beam_code}}
+      )
 
     {:reply, :ok, state}
   end
@@ -95,7 +98,7 @@ defmodule Zedex.Impl.Store do
 
   @impl GenServer
   def handle_call({:get_original_module, module}, _from, state) do
-    [{_, {:beam_code, _} = beam_code}] =
+    [{_, {:beam_code, _filename, _code} = beam_code}] =
       :ets.lookup(@original_modules_table, {:original_module, module})
 
     {:reply, {:ok, beam_code}, state}

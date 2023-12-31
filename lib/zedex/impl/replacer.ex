@@ -10,6 +10,7 @@ defmodule Zedex.Impl.Replacer do
   # Prefix to use for the original function implementation
   @original_function_prefix "__zedex_replacer_original__"
 
+  # Filename prefix for the patched module
   @patched_module_filename_prefix "__zedex__patched__"
 
   def start_link([]) do
@@ -101,10 +102,9 @@ defmodule Zedex.Impl.Replacer do
 
   defp do_reset(modules) when is_list(modules) do
     Enum.each(modules, fn mod ->
-      {:ok, {:beam_code, beam_code}} = Store.get_original_module(mod)
+      {:ok, {:beam_code, filename, beam_code}} = Store.get_original_module(mod)
 
-      # TODO: Get the actual original filename
-      :ok = load_beam_code(mod, "#{mod}", beam_code)
+      :ok = load_beam_code(mod, filename, beam_code)
 
       :ok = Store.remove_module_callbacks(mod)
       :ok = Store.remove_original_module(mod)
@@ -122,10 +122,19 @@ defmodule Zedex.Impl.Replacer do
 
     {original_module_code, patched_module_code} = generate_patched_module(module, replacements)
 
-    :ok = Store.store_original_module(module, original_module_code)
+    :ok =
+      Store.store_original_module(
+        module,
+        find_filename(module),
+        original_module_code
+      )
 
     :ok =
-      load_beam_code(module, "#{@patched_module_filename_prefix}#{module}", patched_module_code)
+      load_beam_code(
+        module,
+        "#{@patched_module_filename_prefix}(#{module})",
+        patched_module_code
+      )
 
     :ok
   end
@@ -313,5 +322,19 @@ defmodule Zedex.Impl.Replacer do
 
   defp patched?(mfa) do
     Store.get_patched_callback(mfa) != nil
+  end
+
+  defp find_filename(module) do
+    # FIXME: There is probably a better way to do this.
+
+    module_name = ~c"#{module}"
+    elixir_module_name = ~c"Elixir.#{module}"
+
+    {_, filename, _} =
+      Enum.find(:code.all_available(), "nofile", fn {mod, _, _} ->
+        mod == module_name || mod == elixir_module_name
+      end)
+
+    "#{filename}"
   end
 end
