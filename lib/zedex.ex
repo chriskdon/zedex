@@ -11,26 +11,42 @@ defmodule Zedex do
   @doc """
   Replace module functions with functions from another module.
 
-  Example:
-    `replace([
-      {{SomeModule, :some_func, 1}, {ReplacementModule, :another_func_1, 1}},
-      {{AnotherModule, :their_func, 2}, {ReplacementModule, :another_func_2, 2}}
-     ])`
+  ## Examples
+
+      replace([
+        {{SomeModule1, :some_func_1, 1}, {ReplacementModule, :another_func_1, 1}},
+        {{SomeModule1, :some_func_2, 2}, {ReplacementModule, :another_func_2, 2}},
+        {{SomeModule2, :some_func_1, 2}, fn a, b -> a + b end},
+      ])
   """
   @spec replace(list(replacement())) :: :ok
   defdelegate replace(replacements), to: Replacer
 
+  @doc """
+  Replace a single module function with a different one.
+
+  ## Examples
+
+      replace_with({SomeModule1, :some_fun_1, 1}, {ReplacementModule, :another_func_1, 1})
+
+      replace_with({SomeModule1, :some_fun_1, 1}, fn a -> a + 1 end)
+
+  """
   @spec replace_with(mfa(), callback()) :: :ok
   defdelegate replace_with(mfa, callback), to: Replacer
 
   @doc """
   Reset all modules back to their original unhooked state.
+
+  Returns the list of reset modules.
   """
   @spec reset() :: [module()]
   defdelegate reset, to: Replacer
 
   @doc """
-  Reset the module back to its original unhooked state.
+  Reset a module or list of modules back to the original unhooked state.
+
+  Returns the list of reset modules.
   """
   @spec reset(modules :: list(module()) | module()) :: [module()]
   defdelegate reset(modules), to: Replacer
