@@ -16,13 +16,29 @@ defmodule ZedexTest do
   end
 
   describe "replace_with/2" do
-    test "replaces a function with a lambda" do
+    test "replaces a function with an anonymous function" do
       :ok =
         Zedex.replace_with({TestModule1, :test_func_1, 1}, fn a ->
           "Hello World: #{a}"
         end)
 
       assert "Hello World: 123" == TestModule1.test_func_1(123)
+    end
+
+    test "can replace a function multiple times" do
+      :ok =
+        Zedex.replace_with({TestModule1, :test_func_1, 1}, fn a ->
+          "Hello World: #{a}"
+        end)
+
+      assert "Hello World: 123" == TestModule1.test_func_1(123)
+
+      :ok =
+        Zedex.replace_with({TestModule1, :test_func_1, 1}, fn a ->
+          "Hello World: #{a + 100}"
+        end)
+
+      assert "Hello World: 223" == TestModule1.test_func_1(123)
     end
   end
 
