@@ -52,10 +52,10 @@ defmodule Zedex do
   defdelegate reset(modules), to: Replacer
 
   @doc """
-  Call the original version of a function.
+  Call the real (i.e. original) version of a function.
   """
-  @spec apply_original(module(), atom(), list(any())) :: any()
-  def apply_original(module, function, args) do
+  @spec apply_r(module(), atom(), list(any())) :: any()
+  def apply_r(module, function, args) do
     {m, f, _arity} = Replacer.original_function_mfa(module, function, Enum.count(args))
     apply(m, f, args)
   end

@@ -154,8 +154,8 @@ defmodule ZedexTest do
     end
   end
 
-  describe "apply_original/3" do
-    test "can call original function with apply_original" do
+  describe "apply_r/3" do
+    test "can call original function" do
       :ok =
         Zedex.replace([
           {{TestModule1, :test_func_1, 1}, {TestModule2, :test_func_2, 1}}
@@ -164,11 +164,11 @@ defmodule ZedexTest do
       assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
 
       assert "[#{TestModule1}] Test Func 1 - 123" ==
-               Zedex.apply_original(TestModule1, :test_func_1, [123])
+               Zedex.apply_r(TestModule1, :test_func_1, [123])
     end
 
     test "can call non-replaced function" do
-      assert 3 == Zedex.apply_original(Enum, :count, [[1, 2, 3]])
+      assert 3 == Zedex.apply_r(Enum, :count, [[1, 2, 3]])
     end
   end
 end

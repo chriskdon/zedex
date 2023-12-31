@@ -43,9 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `Zedex.replace/1`
+- `Zedex.replace/1` and `Zedex.replace_with/2`
 - `Zedex.reset/0` and `Zedex.reset/1`
-- `Zedex.apply_original/3`
+- `Zedex.apply_r/3`
 
 <!-- Diffs -->
 [unreleased]: https://github.com/chriskdon/zedex/compare/v0.0.1...HEAD
