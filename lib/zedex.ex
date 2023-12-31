@@ -56,7 +56,7 @@ defmodule Zedex do
   """
   @spec apply_r(module(), atom(), list(any())) :: any()
   def apply_r(module, function, args) do
-    {m, f, _arity} = Replacer.original_function_mfa(module, function, Enum.count(args))
+    {m, f, _} = Replacer.original_function_mfa(module, function, Enum.count(args))
     apply(m, f, args)
   end
 end

@@ -4,7 +4,7 @@ defmodule Zedex.MixProject do
   def project do
     [
       app: :zedex,
-      version: "0.1.0-prerelease",
+      version: "0.0.1-prerelease",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -14,15 +14,7 @@ defmodule Zedex.MixProject do
       name: "Zedex",
       source_url: "https://github.com/chriskdon/zedex",
       homepage_url: "https://github.com/chriskdon/zedex",
-      docs: [
-        # The main page in the docs
-        main: "readme",
-        extras: [
-          "README.md",
-          "CHANGELOG.md"
-        ],
-        formatters: ["html"]
-      ]
+      docs: docs()
     ]
   end
 
@@ -45,4 +37,16 @@ defmodule Zedex.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp docs do
+    [
+      # The main page in the docs
+      main: "readme",
+      extras: [
+        "README.md",
+        "CHANGELOG.md"
+      ],
+      formatters: ["html"]
+    ]
+  end
 end

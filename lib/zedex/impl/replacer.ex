@@ -1,6 +1,8 @@
 defmodule Zedex.Impl.Replacer do
   @moduledoc false
 
+  # This module performs the replacement of functions in another module.
+
   use GenServer
 
   alias Zedex.Impl.Store
