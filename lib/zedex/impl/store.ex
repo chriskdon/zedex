@@ -3,15 +3,30 @@ defmodule Zedex.Impl.Store do
 
   use GenServer
 
+  @original_modules_table __MODULE__.OriginalModules
+  @callbacks_table __MODULE__.Callbacks
+
+  def callbacks_table, do: @callbacks_table
+
   def start_link([]) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
 
   @impl GenServer
   def init([]) do
-    table = :ets.new(__MODULE__, [:named_table, :set, :private])
+    original_modules_table = :ets.new(@original_modules_table, [:named_table, :set, :private])
+    callbacks_table = :ets.new(@callbacks_table, [:named_table, :set, :protected])
 
-    {:ok, %{table: table}}
+    state = %{
+      original_modules_table: original_modules_table,
+      callbacks_table: callbacks_table,
+    }
+
+    {:ok, state}
+  end
+
+  def store_patched_callback({_module, _function, _arity} = mfa, callback) do
+    GenServer.call(__MODULE__, {:store_patched_callback, mfa, callback})
   end
 
   def store_original_module(module, beam_code) do
@@ -27,21 +42,27 @@ defmodule Zedex.Impl.Store do
   end
 
   @impl GenServer
+  def handle_call({:store_patched_callback, mfa, callback}, _from, state) do
+    true = :ets.insert(@callbacks_table, {mfa, callback})
+    {:reply, :ok, state}
+  end
+
+  @impl GenServer
   def handle_call({:store_original_module, module, beam_code}, _from, state) do
-    true = :ets.insert(__MODULE__, {{:original_module, module}, {:beam_code, beam_code}})
+    true = :ets.insert(@original_modules_table, {{:original_module, module}, {:beam_code, beam_code}})
     {:reply, :ok, state}
   end
 
   @impl GenServer
   def handle_call({:get_original_module, module}, _from, state) do
-    [{_, {:beam_code, _} = beam_code}] = :ets.lookup(__MODULE__, {:original_module, module})
+    [{_, {:beam_code, _} = beam_code}] = :ets.lookup(@original_modules_table, {:original_module, module})
     {:reply, {:ok, beam_code}, state}
   end
 
   @impl GenServer
   def handle_call(:get_all_original_modules, _from, state) do
     original_modules_beam_code =
-      :ets.match(__MODULE__, {{:original_module, :"$1"}, :_})
+      :ets.match(@original_modules_table, {{:original_module, :"$1"}, :_})
       |> Enum.concat()
 
     {:reply, original_modules_beam_code, state}

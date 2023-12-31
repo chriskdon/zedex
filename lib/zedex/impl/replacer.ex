@@ -8,6 +8,8 @@ defmodule Zedex.Impl.Replacer do
   # Prefix to use for the original function implementation
   @original_function_prefix "__zedex_replacer_original__"
 
+  @callbacks_table Store.callbacks_table()
+
   def start_link([]) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
@@ -113,7 +115,7 @@ defmodule Zedex.Impl.Replacer do
         chunks,
         {_start = [], _exports = [], _rest = []},
         fn form, form_acc ->
-          handle_form_patch(:erl_syntax.type(form), form, replacements, form_acc)
+          handle_form_patch(:erl_syntax.type(form), module, form, replacements, form_acc)
         end
       )
 
@@ -124,7 +126,7 @@ defmodule Zedex.Impl.Replacer do
     {beam_code, patched_beam_code}
   end
 
-  defp handle_form_patch(:function, form, replacements, {start_forms, export_forms, rest}) do
+  defp handle_form_patch(:function, module, form, replacements, {start_forms, export_forms, rest}) do
     func = :erl_syntax.atom_value(:erl_syntax.function_name(form))
     arity = :erl_syntax.function_arity(form)
 
@@ -134,7 +136,7 @@ defmodule Zedex.Impl.Replacer do
 
       mfa ->
         {replaced, {new_original_name, original}} =
-          do_replace(form, {func, arity}, mfa)
+          do_replace(form, {module, func, arity}, mfa)
 
         arity_qualifier =
           :erl_syntax.arity_qualifier(
@@ -151,7 +153,7 @@ defmodule Zedex.Impl.Replacer do
     end
   end
 
-  defp handle_form_patch(:attribute, form, _replacements, {start_forms, export_forms, rest}) do
+  defp handle_form_patch(:attribute, _module, form, _replacements, {start_forms, export_forms, rest}) do
     case :erl_syntax.atom_value(:erl_syntax.attribute_name(form)) do
       name when name in [:file, :module] ->
         {start_forms ++ [form], export_forms, rest}
@@ -164,7 +166,7 @@ defmodule Zedex.Impl.Replacer do
     end
   end
 
-  defp handle_form_patch(_, form, _replacements, {start_forms, export_forms, rest}) do
+  defp handle_form_patch(_, _module, form, _replacements, {start_forms, export_forms, rest}) do
     {start_forms, export_forms, rest ++ [form]}
   end
 
@@ -229,7 +231,7 @@ defmodule Zedex.Impl.Replacer do
 
   defp do_replace(
          function_form,
-         {original_func, arity},
+         {original_module, original_func, arity} = mfa,
          {replacement_module, replacement_func, arity}
        ) do
     :erl_syntax.function_clauses(function_form)
@@ -242,10 +244,21 @@ defmodule Zedex.Impl.Replacer do
     # Create function with body replaced with call replacement
     args = Enum.map_join(1..arity, ",", fn i -> "Arg@#{i}" end)
 
-    func_charlist =
-      ~c"'#{func_name}'(#{args}) -> '#{replacement_module}':#{replacement_func}(#{args})."
+    # Store a callback that calls the MFA
+    Store.store_patched_callback(mfa, fn args ->
+      apply(replacement_module, replacement_func, args)
+    end)
 
-    replaced_func_0 = :merl.quote(func_charlist)
+    # We may eventually want to inline direct MFA calls for efficiency. For
+    # now doing a lookup on a lambda makes other operations simpler.
+    patched_func =
+      """
+      '#{func_name}'(#{args}) ->
+          [{_, Callback}] = ets:lookup('#{@callbacks_table}', {'#{original_module}', #{original_func}, #{arity}}),
+          Callback([#{args}]).
+      """
+
+    replaced_func_0 = :merl.quote(String.to_charlist(patched_func))
     replaced_func_1 = :erl_syntax.add_ann(ann, replaced_func_0)
 
     original_func_new_name = String.to_atom("#{@original_function_prefix}#{original_func}")
