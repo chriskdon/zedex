@@ -3,7 +3,7 @@ defmodule Zedex do
   Replace functions from other modules with your own.
   """
 
-  alias Zedex.Replacer
+  alias Zedex.Impl.Replacer
 
   @type replacement :: {original :: mfa(), replacement :: mfa()}
 

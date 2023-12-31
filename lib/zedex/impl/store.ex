@@ -1,4 +1,4 @@
-defmodule Zedex.Store do
+defmodule Zedex.Impl.Store do
   @moduledoc false
 
   use GenServer

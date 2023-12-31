@@ -8,8 +8,8 @@ defmodule Zedex.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {Zedex.Store, []},
-      {Zedex.Replacer, []}
+      {Zedex.Impl.Store, []},
+      {Zedex.Impl.Replacer, []}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

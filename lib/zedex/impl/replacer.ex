@@ -1,9 +1,9 @@
-defmodule Zedex.Replacer do
+defmodule Zedex.Impl.Replacer do
   @moduledoc false
 
   use GenServer
 
-  alias Zedex.Store
+  alias Zedex.Impl.Store
 
   # Prefix to use for the original function implementation
   @original_function_prefix "__zedex_replacer_original__"
