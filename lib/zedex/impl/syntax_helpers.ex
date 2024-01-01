@@ -31,6 +31,14 @@ defmodule Zedex.Impl.SyntaxHelpers do
     )
   end
 
+  def export_function_est(function_est) do
+    arity = :erl_syntax.function_arity(function_est)
+
+    function_est
+    |> function_name()
+    |> export_est(arity)
+  end
+
   def export_est(export_name, arity) do
     arity_qualifier =
       :erl_syntax.arity_qualifier(

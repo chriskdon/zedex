@@ -6,8 +6,6 @@ defmodule Zedex.Impl.Store do
   @original_modules_table __MODULE__.OriginalModules
   @callbacks_table __MODULE__.Callbacks
 
-  def callbacks_table, do: @callbacks_table
-
   def start_link([]) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
@@ -27,6 +25,12 @@ defmodule Zedex.Impl.Store do
 
   def store_patched_callback({_module, _function, _arity} = mfa, callback) do
     GenServer.call(__MODULE__, {:store_patched_callback, mfa, callback})
+  end
+
+  # Get the table where callbacks for an mfa are stored.
+  def callback_table({_module, _function, _arity}) do
+    # For now there is only a single table
+    @callbacks_table
   end
 
   def get_patched_callback(mfa) do
@@ -55,8 +59,10 @@ defmodule Zedex.Impl.Store do
 
   @impl GenServer
   def handle_call({:store_patched_callback, mfa, callback}, _from, state) do
-    true = :ets.insert(@callbacks_table, {mfa, callback})
-    {:reply, {@callbacks_table, mfa}, state}
+    table = callback_table(mfa)
+    true = :ets.insert(table, {mfa, callback})
+
+    {:reply, {table, mfa}, state}
   end
 
   @impl GenServer
@@ -70,7 +76,7 @@ defmodule Zedex.Impl.Store do
   def handle_call({:get_patched_callback, mfa}, _from, state) do
     # FIXME: Does this need to be sync in the process?
     callback =
-      case :ets.lookup(@callbacks_table, mfa) do
+      case :ets.lookup(callback_table(mfa), mfa) do
         [{_, callback}] -> callback
         _ -> nil
       end

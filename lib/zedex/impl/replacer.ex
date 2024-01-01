@@ -120,7 +120,12 @@ defmodule Zedex.Impl.Replacer do
   defp replace_module(module, replacements) do
     :ok = assert_replacements(replacements)
 
-    {original_module_code, patched_module_code} = generate_patched_module(module, replacements)
+    {original_module_code, patched_module_code, callbacks} =
+      generate_patched_module(module, replacements)
+
+    Enum.each(callbacks, fn {mfa, callback} ->
+      store_patched_callback(mfa, callback)
+    end)
 
     :ok =
       Store.store_original_module(
@@ -145,61 +150,77 @@ defmodule Zedex.Impl.Replacer do
 
     # TODO: Error if we can't find a function to replace
 
-    {start_forms, export_forms, rest_forms} =
+    %{
+      forms: %{start: start_forms, exports: export_forms, rest: rest_forms},
+      callbacks: callbacks
+    } =
       Enum.reduce(
         chunks,
-        {_start_forms = [], _export_forms = [], _rest_forms = []},
-        fn form, form_acc ->
-          handle_form_patch(:erl_syntax.type(form), module, form, replacements, form_acc)
+        %{
+          module: module,
+          replacements: replacements,
+          forms: %{start: [], exports: [], rest: []},
+          callbacks: []
+        },
+        fn form, state ->
+          handle_form_patch(:erl_syntax.type(form), form, state)
         end
       )
 
     module_forms = start_forms ++ export_forms ++ rest_forms
     patched_beam_code = forms_to_beam_code(module_forms)
 
-    {beam_code, patched_beam_code}
+    {beam_code, patched_beam_code, callbacks}
   end
 
-  defp handle_form_patch(:function, module, form, replacements, {start_forms, export_forms, rest}) do
-    {^module, func_name, arity} = SyntaxHelpers.function_form_to_mfa(module, form)
+  defp handle_form_patch(:function, form, state) do
+    %{module: module, replacements: replacements, callbacks: callbacks} = state
+    %{start: start_forms, exports: export_forms, rest: rest_forms} = forms = state.forms
 
-    case find_replacement({func_name, arity}, replacements) do
+    mfa = SyntaxHelpers.function_form_to_mfa(module, form)
+
+    case find_replacement(mfa, replacements) do
       :none ->
-        {start_forms, export_forms, rest ++ [form]}
+        %{state | forms: %{forms | rest: rest_forms ++ [form]}}
 
       replacement_callback ->
-        {replaced_est, original_est} = do_replace(module, form, replacement_callback)
+        {replaced_est, original_est} = do_replace(mfa, form)
+        export_original_est = SyntaxHelpers.export_function_est(original_est)
 
-        export_original_est =
-          original_est
-          |> SyntaxHelpers.function_name()
-          |> SyntaxHelpers.export_est(arity)
+        module_forms = %{
+          start: start_forms,
+          exports: export_forms ++ [export_original_est],
+          rest: rest_forms ++ [replaced_est, original_est]
+        }
 
-        {start_forms, export_forms ++ [export_original_est], rest ++ [replaced_est, original_est]}
+        callbacks = callbacks ++ [{mfa, replacement_callback}]
+
+        %{state | forms: module_forms, callbacks: callbacks}
     end
   end
 
-  defp handle_form_patch(
-         :attribute,
-         _module,
-         form,
-         _replacements,
-         {start_forms, export_forms, rest}
-       ) do
-    case :erl_syntax.atom_value(:erl_syntax.attribute_name(form)) do
-      name when name in [:file, :module] ->
-        {start_forms ++ [form], export_forms, rest}
+  defp handle_form_patch(:attribute, form, state) do
+    %{start: start_forms, exports: export_forms, rest: rest_forms} = forms = state.forms
 
-      :export ->
-        {start_forms, export_forms ++ [form], rest}
+    module_forms =
+      case :erl_syntax.atom_value(:erl_syntax.attribute_name(form)) do
+        name when name in [:file, :module] ->
+          %{forms | start: start_forms ++ [form]}
 
-      _ ->
-        {start_forms, export_forms, rest ++ [form]}
-    end
+        :export ->
+          %{forms | exports: export_forms ++ [form]}
+
+        _ ->
+          %{forms | rest: rest_forms ++ [form]}
+      end
+
+    %{state | forms: module_forms}
   end
 
-  defp handle_form_patch(_, _module, form, _replacements, {start_forms, export_forms, rest}) do
-    {start_forms, export_forms, rest ++ [form]}
+  defp handle_form_patch(_, form, state) do
+    %{rest: rest_forms} = forms = state.forms
+
+    %{state | forms: %{forms | rest: rest_forms ++ [form]}}
   end
 
   defp forms_to_beam_code(forms) do
@@ -251,7 +272,7 @@ defmodule Zedex.Impl.Replacer do
     :ok
   end
 
-  defp find_replacement({func, arity}, replacements) do
+  defp find_replacement({_module, func, arity}, replacements) do
     case Enum.filter(
            replacements,
            fn {{_o_m, o_f, o_a}, _} ->
@@ -264,19 +285,12 @@ defmodule Zedex.Impl.Replacer do
     end
   end
 
-  defp do_replace(
-         module,
-         function_form,
-         callback
-       ) do
+  defp do_replace({module, _function, _arity}, function_form) do
     {^module, name, _} = mfa = SyntaxHelpers.function_form_to_mfa(module, function_form)
-
-    # TODO: Move higher up to keep this function pure
-    {callback_table, ^mfa} = store_patched_callback(mfa, callback)
 
     # Create the patched function that calls the callback
     replaced_func_est =
-      build_patched_function(mfa, callback_table, :erl_syntax.get_ann(function_form))
+      build_patched_function(mfa, :erl_syntax.get_ann(function_form))
 
     # Rename original function so it can be used if needed
     original_func_est =
@@ -285,9 +299,11 @@ defmodule Zedex.Impl.Replacer do
     {replaced_func_est, original_func_est}
   end
 
-  defp build_patched_function({module, name, arity}, callback_table, annotation) do
+  defp build_patched_function({module, name, arity} = mfa, annotation) do
     # Create function with body replaced with call replacement
     args = Enum.map_join(1..arity, ",", fn i -> "Arg@#{i}" end)
+
+    callback_table = Store.callback_table(mfa)
 
     # We may eventually want to inline direct MFA calls for efficiency. For
     # now doing a lookup on a lambda makes other operations simpler.
