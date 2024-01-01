@@ -89,6 +89,26 @@ Run `mix deps.get`.
   1
 end)
 
+# Replace calls in GenServer.call/3 to :gen.call/4
+# with ReplacementModule.capture_call/4
+:ok = Zedex.replace_calls(
+  {GenServer, :call, 3},
+  {:gen, :call, 4},
+  {ReplacementModule, :capture_call, 4}
+)
+
+# or use an anonymous function
+:ok = Zedex.replace_calls(
+  {GenServer, :call, 3},
+  {:gen, :call, 4},
+  fn server, label, msg, timeout  ->
+    Logger.info("#{inspect(self())} sent #{inspect(msg)} to #{inspect(server)}")
+
+    # Perform the real call
+    :gen.call(server, label, msg, timeout)
+  end
+)
+
 # reset all modules back to their original versions
 :ok = Zedex.reset()
 ```

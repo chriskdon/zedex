@@ -44,8 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `Zedex.replace/1` and `Zedex.replace_with/2`
+  - Replace entire functions in a module
+- `Zedex.replace_calls/3`
+  - Replace calls in a function with calls to another function
 - `Zedex.reset/0` and `Zedex.reset/1`
+  - Reset patched modules back to their original state
 - `Zedex.apply_r/3`
+  - Call the original unpatched function
 
 <!-- Diffs -->
 [unreleased]: https://github.com/chriskdon/zedex/compare/v0.0.1...HEAD

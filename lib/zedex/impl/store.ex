@@ -3,7 +3,10 @@ defmodule Zedex.Impl.Store do
 
   use GenServer
 
+  # TODO: Clean all this up
+
   @original_modules_table __MODULE__.OriginalModules
+  @patched_modules_table __MODULE__.PatchedModules
   @callbacks_table __MODULE__.Callbacks
 
   def start_link([]) do
@@ -12,19 +15,41 @@ defmodule Zedex.Impl.Store do
 
   @impl GenServer
   def init([]) do
-    original_modules_table = :ets.new(@original_modules_table, [:named_table, :set, :protected])
-    callbacks_table = :ets.new(@callbacks_table, [:named_table, :set, :protected])
+    # TODO: Should these be made private?
+    :ets.new(@original_modules_table, [:named_table, :set, :public])
+    :ets.new(@patched_modules_table, [:named_table, :set, :public])
+    :ets.new(@callbacks_table, [:named_table, :set, :public])
 
-    state = %{
-      original_modules_table: original_modules_table,
-      callbacks_table: callbacks_table
-    }
-
-    {:ok, state}
+    {:ok, []}
   end
 
   def store_patched_callback({_module, _function, _arity} = mfa, callback) do
-    GenServer.call(__MODULE__, {:store_patched_callback, mfa, callback})
+    table = callback_table(mfa)
+    true = :ets.insert(table, {mfa, callback})
+
+    {table, mfa}
+  end
+
+  def store_patched_call_callback(caller_mfa, called_mfa, callback) do
+    true = :ets.insert(@callbacks_table, {{:call_patch, caller_mfa, called_mfa}, callback})
+    :ok
+  end
+
+  def store_patched_module(module, beam_code, ast) do
+    true =
+      :ets.insert(
+        @patched_modules_table,
+        {module, %{beam_code: beam_code, ast: ast}}
+      )
+
+    :ok
+  end
+
+  def get_patched_module(module) do
+    case :ets.lookup(@patched_modules_table, module) do
+      [{_, patched_module}] -> patched_module
+      _ -> nil
+    end
   end
 
   # Get the table where callbacks for an mfa are stored.
@@ -33,90 +58,74 @@ defmodule Zedex.Impl.Store do
     @callbacks_table
   end
 
+  def get_call_patch_callback(caller_mfa, called_mfa) do
+    case :ets.lookup(@callbacks_table, {:call_patch, caller_mfa, called_mfa}) do
+      [{_, callback}] -> callback
+      _ -> nil
+    end
+  end
+
+  def remove_call_patch_callback(caller_module) do
+    true = :ets.match_delete(@callbacks_table, {{:call_patch, {caller_module, :_, :_}, :_}, :_})
+    :ok
+  end
+
+  def remove_patched_module(module) do
+    true = :ets.delete(@patched_modules_table, module)
+    :ok
+  end
+
   def get_patched_callback(mfa) do
-    GenServer.call(__MODULE__, {:get_patched_callback, mfa})
-  end
-
-  def remove_module_callbacks(module) do
-    GenServer.call(__MODULE__, {:remove_module_callbacks, module})
-  end
-
-  def store_original_module(module, filename, beam_code) do
-    GenServer.call(__MODULE__, {:store_original_module, module, filename, beam_code})
-  end
-
-  def remove_original_module(module) do
-    GenServer.call(__MODULE__, {:remove_original_module, module})
-  end
-
-  def get_original_module(module) do
-    GenServer.call(__MODULE__, {:get_original_module, module})
-  end
-
-  def get_all_original_modules do
-    GenServer.call(__MODULE__, :get_all_original_modules)
-  end
-
-  @impl GenServer
-  def handle_call({:store_patched_callback, mfa, callback}, _from, state) do
-    table = callback_table(mfa)
-    true = :ets.insert(table, {mfa, callback})
-
-    {:reply, {table, mfa}, state}
-  end
-
-  @impl GenServer
-  def handle_call({:remove_module_callbacks, module}, _from, state) do
-    true = :ets.match_delete(@callbacks_table, {{module, :_, :_}, :_})
-
-    {:reply, :ok, state}
-  end
-
-  @impl GenServer
-  def handle_call({:get_patched_callback, mfa}, _from, state) do
-    # FIXME: Does this need to be sync in the process?
     callback =
       case :ets.lookup(callback_table(mfa), mfa) do
         [{_, callback}] -> callback
         _ -> nil
       end
 
-    {:reply, callback, state}
+    callback
   end
 
-  @impl GenServer
-  def handle_call({:store_original_module, module, filename, beam_code}, _from, state) do
+  def remove_module_callbacks(module) do
+    true = :ets.match_delete(@callbacks_table, {{module, :_, :_}, :_})
+    :ok
+  end
+
+  def store_original_module(module, filename, beam_code) do
     true =
       :ets.insert(
         @original_modules_table,
         {{:original_module, module}, {:beam_code, filename, beam_code}}
       )
 
-    {:reply, :ok, state}
+    :ok
   end
 
-  @impl GenServer
-  def handle_call({:remove_original_module, module}, _from, state) do
+  def remove_original_module(module) do
     true = :ets.delete(@original_modules_table, {:original_module, module})
-
-    {:reply, :ok, state}
+    :ok
   end
 
-  @impl GenServer
-  def handle_call({:get_original_module, module}, _from, state) do
-    [{_, {:beam_code, _filename, _code} = beam_code}] =
-      :ets.lookup(@original_modules_table, {:original_module, module})
+  def get_original_module(module) do
+    result =
+      case :ets.lookup(@original_modules_table, {:original_module, module}) do
+        [{_, {:beam_code, _filename, _code} = beam_code}] -> beam_code
+        _ -> nil
+      end
 
-    {:reply, {:ok, beam_code}, state}
+    {:ok, result}
   end
 
-  @impl GenServer
-  def handle_call(:get_all_original_modules, _from, state) do
+  def get_all_original_modules do
     original_modules_beam_code =
       :ets.match(@original_modules_table, {{:original_module, :"$1"}, :_})
       |> Enum.concat()
 
-    {:reply, original_modules_beam_code, state}
+    original_modules_beam_code
+  end
+
+  @impl GenServer
+  def handle_call(_request, _from, state) do
+    {:reply, :ok, state}
   end
 
   @impl GenServer
