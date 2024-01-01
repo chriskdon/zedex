@@ -91,16 +91,26 @@ Run `mix deps.get`.
   1
 end)
 
+# reset all modules back to their original versions
+:ok = Zedex.reset()
+
+# Replace function calls instead of the function implementation.
+#
+# ⚠ Replacing calls is generally not recommended as any changes to the underlying
+# code being replaced could break the intended behaviour. It mainly exists to
+# replace NIFs and BIFs (e.g. send) that can't normally be hooked into by
+# replacing the function directly.
+
 # Replace calls in GenServer.call/3 to :gen.call/4
-# with ReplacementModule.capture_call/4
-:ok = Zedex.replace_calls(
+# with ReplacementModule.capture_call/4.
+:ok = Zedex.Danger.replace_calls(
   {GenServer, :call, 3},
   {:gen, :call, 4},
   {ReplacementModule, :capture_call, 4}
 )
 
 # or use an anonymous function
-:ok = Zedex.replace_calls(
+:ok = Zedex.Danger.replace_calls(
   {GenServer, :call, 3},
   {:gen, :call, 4},
   fn server, label, msg, timeout  ->
@@ -110,9 +120,6 @@ end)
     :gen.call(server, label, msg, timeout)
   end
 )
-
-# reset all modules back to their original versions
-:ok = Zedex.reset()
 ```
 
 Run `mix docs --open` for the complete documentation.

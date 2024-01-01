@@ -36,26 +36,6 @@ defmodule Zedex do
   defdelegate replace_with(mfa, callback), to: Replacer
 
   @doc """
-  Replace calls to one module function with calls to another in a specific MFA.
-
-  ### Examples
-
-      replace_calls(
-        {CallerModule, :my_fun_1, 1},
-        {CalledModule, :some_fun_1, 2},
-        {ReplacementModule, :another_fun_1, 2}
-      )
-
-      replace_calls(
-        {CallerModule, :my_fun_1, 1},
-        {CalledModule, :some_fun_1, 2},
-        fn a, b -> a + b end
-      )
-  """
-  @spec replace_calls(mfa(), mfa(), callback()) :: :ok
-  defdelegate replace_calls(caller_mfa, called_mfa, callback), to: Replacer
-
-  @doc """
   Reset all modules back to their original unhooked state.
 
   Returns the list of reset modules.

@@ -1,7 +1,7 @@
 defmodule ZedexTest do
   use ExUnit.Case
 
-  alias Zedex.Test.{TestModule1, TestModule2, TestModule3}
+  alias Zedex.Test.{TestModule1, TestModule2}
 
   doctest Zedex
 
@@ -171,76 +171,6 @@ defmodule ZedexTest do
       assert [TestModule1] == Zedex.reset(TestModule1)
 
       assert "[#{TestModule1}] Test Func 1 - 123" == TestModule1.test_func_1(123)
-    end
-  end
-
-  describe "replace_calls/1" do
-    test "replaces a call with an MFA" do
-      :ok =
-        Zedex.replace_calls(
-          {TestModule1, :test_func_3, 2},
-          {TestModule3, :add, 2},
-          {TestModule3, :sub, 2}
-        )
-
-      assert "[#{TestModule1}] Test Func 3 - 100" == TestModule1.test_func_3(200, 100)
-      assert "[#{TestModule1}] Test Func 4 - 300" == TestModule1.test_func_4(200, 100)
-    end
-
-    test "replaces a call with an anonymous function" do
-      :ok =
-        Zedex.replace_calls(
-          {TestModule1, :test_func_3, 2},
-          {TestModule3, :add, 2},
-          fn a, b -> a * b end
-        )
-
-      assert "[#{TestModule1}] Test Func 3 - 100" == TestModule1.test_func_3(4, 25)
-      assert "[#{TestModule1}] Test Func 4 - 29" == TestModule1.test_func_4(4, 25)
-    end
-
-    test "can replace spawn and send" do
-      test_pid = self()
-
-      fake_pid = :c.pid(0, 999_999, 999_999)
-
-      :ok =
-        Zedex.replace_calls(
-          {TestModule1, :spawn_and_send, 2},
-          {:erlang, :spawn, 1},
-          fn f ->
-            send(test_pid, {:spawn, f})
-            fake_pid
-          end
-        )
-
-      :ok =
-        Zedex.replace_calls(
-          {TestModule1, :spawn_and_send, 2},
-          {:erlang, :send, 2},
-          fn pid, msg ->
-            send(pid, {:send, pid, msg})
-          end
-        )
-
-      assert fake_pid == TestModule1.spawn_and_send(test_pid, "Hello World")
-
-      assert_received {:spawn, func}
-
-      # Call the "spawned" function since we are no longer actually spawning it.
-      func.()
-
-      assert_received {:send, ^test_pid, {:message, "Hello World"}}
-    end
-
-    @tag :skip
-    test "replaces an MFA in an entire module" do
-      assert false
-    end
-
-    @tag :skip
-    test "replaces a call inside nested lambda" do
-      assert false
     end
   end
 
