@@ -5,7 +5,7 @@ defmodule Zedex.Impl.Replacer do
 
   use GenServer
 
-  alias Zedex.Impl.{Store, SyntaxHelpers}
+  alias Zedex.Impl.{Hooks, Store, SyntaxHelpers}
 
   # Prefix to use for the original function implementation
   @original_function_prefix "__zedex_replacer_original__"
@@ -206,9 +206,11 @@ defmodule Zedex.Impl.Replacer do
           callsite_args
         ]
 
+        {hook_module, hook_function, _} = Hooks.call_hook()
+
         :erl_syntax.application(
-          :erl_syntax.atom(Zedex.Impl.Patches),
-          :erl_syntax.atom(:patch_call),
+          :erl_syntax.atom(hook_module),
+          :erl_syntax.atom(hook_function),
           patch_args
         )
       end
@@ -424,19 +426,16 @@ defmodule Zedex.Impl.Replacer do
     {replaced_func_est, original_func_est}
   end
 
-  defp build_patched_function({module, name, arity} = mfa, annotation) do
+  defp build_patched_function({module, name, arity}, annotation) do
+    {hook_module, hook_function, _} = Hooks.implementation_hook()
+
     # Create function with body replaced with call replacement
     args = Enum.map_join(1..arity, ",", fn i -> "Arg@#{i}" end)
 
-    callback_table = Store.callback_table(mfa)
-
-    # We may eventually want to inline direct MFA calls for efficiency. For
-    # now doing a lookup on a lambda makes other operations simpler.
     patched_func =
       """
       '#{name}'(#{args}) ->
-          [{_, Callback}] = ets:lookup('#{callback_table}', {'#{module}', #{name}, #{arity}}),
-          Callback([#{args}]).
+        '#{hook_module}':#{hook_function}({'#{module}', #{name}, #{arity}}, [#{args}]).
       """
 
     replaced_func_0 = :merl.quote(String.to_charlist(patched_func))
