@@ -90,37 +90,47 @@ defmodule Zedex.Impl.Replacer do
         _from,
         state
       ) do
-    %{
-      original_module_code: original_module_code,
-      patched_module_code: patched_module_code,
-      patched_module_ast: patched_module_ast
-    } = generate_patched_replace_calls(caller_mfa, called_mfa)
+    :ok = assert_callback_compatible(called_mfa, callback)
 
-    if Store.get_original_module(module) == {:ok, nil} do
-      :ok =
-        Store.store_original_module(
-          module,
-          find_filename(module),
-          original_module_code
+    case generate_patched_replace_calls(caller_mfa, called_mfa) do
+      {:ok,
+       %{
+         original_module_code: original_module_code,
+         patched_module_code: patched_module_code,
+         patched_module_ast: patched_module_ast
+       }} ->
+        if Store.get_original_module(module) == {:ok, nil} do
+          :ok =
+            Store.store_original_module(
+              module,
+              find_filename(module),
+              original_module_code
+            )
+        end
+
+        Store.store_patched_call_callback(
+          caller_mfa,
+          called_mfa,
+          build_callback(callback)
         )
+
+        Store.store_patched_module(module, patched_module_code, patched_module_ast)
+
+        :ok =
+          load_beam_code(
+            module,
+            "#{@patched_module_filename_prefix}(#{module})",
+            patched_module_code
+          )
+
+        {:reply, :ok, state}
+
+      {:error, :module_not_found} ->
+        {:reply, {:error, :caller_not_found}, state}
+
+      {:error, reason} when reason in [:caller_not_found, :called_not_found] ->
+        {:reply, {:error, reason}, state}
     end
-
-    Store.store_patched_call_callback(
-      caller_mfa,
-      called_mfa,
-      build_callback(callback)
-    )
-
-    Store.store_patched_module(module, patched_module_code, patched_module_ast)
-
-    :ok =
-      load_beam_code(
-        module,
-        "#{@patched_module_filename_prefix}(#{module})",
-        patched_module_code
-      )
-
-    {:reply, :ok, state}
   end
 
   @impl GenServer
@@ -144,30 +154,33 @@ defmodule Zedex.Impl.Replacer do
   end
 
   defp generate_patched_replace_calls({caller_module, _, _} = caller_mfa, called_mfa) do
-    %{beam_code: beam_code, ast: module_ast} = get_module_code(caller_module)
+    with {:ok, %{beam_code: beam_code, ast: module_ast}} <- get_module_code(caller_module) do
+      case Enum.reduce(
+             module_ast,
+             %{
+               caller_mfa: caller_mfa,
+               called_mfa: called_mfa,
+               forms: [],
+               state: :caller_not_found
+             },
+             fn form, state ->
+               handle_replace_in_form_patch(:erl_syntax.type(form), form, state)
+             end
+           ) do
+        %{state: state} when state in [:caller_not_found, :called_not_found] ->
+          {:error, state}
 
-    # TODO: Error if we can't find a function to replace
+        %{forms: forms, state: :replaced} ->
+          patched_beam_code = forms_to_beam_code(forms)
 
-    %{forms: forms} =
-      Enum.reduce(
-        module_ast,
-        %{
-          caller_mfa: caller_mfa,
-          called_mfa: called_mfa,
-          forms: []
-        },
-        fn form, state ->
-          handle_replace_in_form_patch(:erl_syntax.type(form), form, state)
-        end
-      )
-
-    patched_beam_code = forms_to_beam_code(forms)
-
-    %{
-      original_module_code: beam_code,
-      patched_module_code: patched_beam_code,
-      patched_module_ast: forms
-    }
+          {:ok,
+           %{
+             original_module_code: beam_code,
+             patched_module_code: patched_beam_code,
+             patched_module_ast: forms
+           }}
+      end
+    end
   end
 
   defp handle_replace_in_form_patch(:function, form, state) do
@@ -179,8 +192,13 @@ defmodule Zedex.Impl.Replacer do
 
     case SyntaxHelpers.function_form_to_mfa(caller_module, form) do
       ^caller_mfa ->
-        patched_function = replace_calls_in_function(form, caller_mfa, called_mfa)
-        %{state | forms: forms ++ [patched_function]}
+        case replace_calls_in_function(form, caller_mfa, called_mfa) do
+          {:ok, patched_function} ->
+            %{state | forms: forms ++ [patched_function], state: :replaced}
+
+          {:error, :not_found} ->
+            %{state | state: :called_not_found}
+        end
 
       _ ->
         %{state | forms: forms ++ [form]}
@@ -192,29 +210,32 @@ defmodule Zedex.Impl.Replacer do
   end
 
   defp replace_calls_in_function(function_est, caller_mfa, called_mfa) do
-    SyntaxHelpers.replace_applications_in_function(
-      function_est,
-      called_mfa,
-      fn node ->
-        callsite_args =
-          :erl_syntax.application_arguments(node)
-          |> :erl_syntax.list()
+    case SyntaxHelpers.replace_applications_in_function(
+           function_est,
+           called_mfa,
+           fn node ->
+             callsite_args =
+               :erl_syntax.application_arguments(node)
+               |> :erl_syntax.list()
 
-        patch_args = [
-          :erl_syntax.abstract(caller_mfa),
-          :erl_syntax.abstract(called_mfa),
-          callsite_args
-        ]
+             patch_args = [
+               :erl_syntax.abstract(caller_mfa),
+               :erl_syntax.abstract(called_mfa),
+               callsite_args
+             ]
 
-        {hook_module, hook_function, _} = Hooks.call_hook()
+             {hook_module, hook_function, _} = Hooks.call_hook()
 
-        :erl_syntax.application(
-          :erl_syntax.atom(hook_module),
-          :erl_syntax.atom(hook_function),
-          patch_args
-        )
-      end
-    )
+             :erl_syntax.application(
+               :erl_syntax.atom(hook_module),
+               :erl_syntax.atom(hook_function),
+               patch_args
+             )
+           end
+         ) do
+      :no_change -> {:error, :not_found}
+      {:updated, patched_function} -> {:ok, patched_function}
+    end
   end
 
   defp do_reset(modules) when is_list(modules) do
@@ -266,31 +287,31 @@ defmodule Zedex.Impl.Replacer do
   end
 
   defp generate_patched_module(module, replacements) do
-    %{beam_code: beam_code, ast: module_ast} = get_module_code(module)
+    with {:ok, %{beam_code: beam_code, ast: module_ast}} <- get_module_code(module) do
+      # TODO: Error if we can't find a function to replace
 
-    # TODO: Error if we can't find a function to replace
+      %{
+        forms: %{start: start_forms, exports: export_forms, rest: rest_forms},
+        callbacks: callbacks
+      } =
+        Enum.reduce(
+          module_ast,
+          %{
+            module: module,
+            replacements: replacements,
+            forms: %{start: [], exports: [], rest: []},
+            callbacks: []
+          },
+          fn form, state ->
+            handle_form_patch(:erl_syntax.type(form), form, state)
+          end
+        )
 
-    %{
-      forms: %{start: start_forms, exports: export_forms, rest: rest_forms},
-      callbacks: callbacks
-    } =
-      Enum.reduce(
-        module_ast,
-        %{
-          module: module,
-          replacements: replacements,
-          forms: %{start: [], exports: [], rest: []},
-          callbacks: []
-        },
-        fn form, state ->
-          handle_form_patch(:erl_syntax.type(form), form, state)
-        end
-      )
+      module_forms = start_forms ++ export_forms ++ rest_forms
+      patched_beam_code = forms_to_beam_code(module_forms)
 
-    module_forms = start_forms ++ export_forms ++ rest_forms
-    patched_beam_code = forms_to_beam_code(module_forms)
-
-    {beam_code, patched_beam_code, callbacks}
+      {beam_code, patched_beam_code, callbacks}
+    end
   end
 
   defp handle_form_patch(:function, form, state) do
@@ -352,15 +373,19 @@ defmodule Zedex.Impl.Replacer do
   defp get_module_code(module) do
     case Store.get_patched_module(module) do
       nil ->
-        {^module, beam_code, _} = :code.get_object_code(module)
+        case :code.get_object_code(module) do
+          {^module, beam_code, _} ->
+            {:ok, {^module, [{:abstract_code, {_, ast}}]}} =
+              :beam_lib.chunks(beam_code, [:abstract_code])
 
-        {:ok, {^module, [{:abstract_code, {_, ast}}]}} =
-          :beam_lib.chunks(beam_code, [:abstract_code])
+            {:ok, %{state: :unpatched, beam_code: beam_code, ast: ast}}
 
-        %{state: :unpatched, beam_code: beam_code, ast: ast}
+          :error ->
+            {:error, :module_not_found}
+        end
 
       %{beam_code: _, ast: _} = patched_module ->
-        Map.put(patched_module, :state, :patched)
+        {:ok, Map.put(patched_module, :state, :patched)}
     end
   end
 
@@ -382,21 +407,22 @@ defmodule Zedex.Impl.Replacer do
     Enum.each(
       replacements,
       fn
-        {{_o_module, _o_func, arity}, {_r_module, _r_func, arity}} ->
-          :ok
-
-        {{_o_module, _o_func, arity}, callback} when is_function(callback) ->
-          case :erlang.fun_info(callback)[:arity] do
-            ^arity -> :ok
-            _ -> raise "Arity must match"
-          end
-
-        _ ->
-          raise "Arity must match"
+        {mfa, callback} -> :ok = assert_callback_compatible(mfa, callback)
       end
     )
 
     :ok
+  end
+
+  defp assert_callback_compatible({_o_module, _o_func, arity}, {_r_module, _r_func, arity}) do
+    :ok
+  end
+
+  defp assert_callback_compatible({_mod, _func, arity}, callback) when is_function(callback) do
+    case :erlang.fun_info(callback)[:arity] do
+      ^arity -> :ok
+      _ -> raise "Arity must match"
+    end
   end
 
   defp find_replacement({_module, func, arity}, replacements) do

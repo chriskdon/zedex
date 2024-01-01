@@ -77,6 +77,33 @@ defmodule Zedex.DangerTest do
       assert_received {:send, ^test_pid, {:message, "Hello World"}}
     end
 
+    test "errors with :caller_not_found when caller module is not found" do
+      assert {:error, :caller_not_found} =
+               ZedexDanger.replace_calls(
+                 {ModuleDoesNotExist, :test, 1},
+                 {:rand, :uniform, 1},
+                 fn _n -> 1 end
+               )
+    end
+
+    test "errors with :caller_not_found caller function is not found" do
+      assert {:error, :caller_not_found} =
+               ZedexDanger.replace_calls(
+                 {TestModule1, :does_not_exist, 1},
+                 {:rand, :uniform, 1},
+                 fn _n -> 1 end
+               )
+    end
+
+    test "errors with :called_not_found when called function is not found" do
+      assert {:error, :called_not_found} =
+               ZedexDanger.replace_calls(
+                 {TestModule1, :test_func_1, 1},
+                 {:rand, :uniform, 1},
+                 fn _n -> 1 end
+               )
+    end
+
     @tag :skip
     test "replaces an MFA in an entire module" do
       assert false

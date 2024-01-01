@@ -59,26 +59,35 @@ defmodule Zedex.Impl.SyntaxHelpers do
         original_mfa,
         replacer_fn
       ) do
-    map_typed(
-      function_ast,
-      fn
-        :application, node ->
-          case application_est_to_mfa(node) do
-            {:ok, ^original_mfa} -> replacer_fn.(node)
-            _ -> node
-          end
+    {replaced_ast, %{replaced: replaced}} =
+      mapfold_typed(
+        function_ast,
+        %{replaced: false},
+        fn
+          :application, node, acc ->
+            case application_est_to_mfa(node) do
+              {:ok, ^original_mfa} -> {replacer_fn.(node), %{replaced: true}}
+              _ -> {node, acc}
+            end
 
-        _, node ->
-          node
-      end
-    )
+          _, node, acc ->
+            {node, acc}
+        end
+      )
+
+    if replaced do
+      {:updated, replaced_ast}
+    else
+      :no_change
+    end
   end
 
-  def map_typed(ast, fun) do
-    :erl_syntax_lib.map(
-      fn node ->
-        fun.(:erl_syntax.type(node), node)
+  def mapfold_typed(ast, acc, fun) do
+    :erl_syntax_lib.mapfold(
+      fn node, acc ->
+        fun.(:erl_syntax.type(node), node, acc)
       end,
+      acc,
       ast
     )
   end

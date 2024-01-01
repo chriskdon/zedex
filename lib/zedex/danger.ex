@@ -36,6 +36,7 @@ defmodule Zedex.Danger do
         fn a, b -> a + b end
       )
   """
-  @spec replace_calls(mfa(), mfa(), Zedex.callback()) :: :ok
+  @spec replace_calls(mfa(), mfa(), Zedex.callback()) ::
+          :ok | {:error, :caller_not_found | :called_not_found}
   defdelegate replace_calls(caller_mfa, called_mfa, callback), to: Replacer
 end
