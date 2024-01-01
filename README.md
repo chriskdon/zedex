@@ -41,8 +41,10 @@ This library allows patching and replacing functions in existing modules with
 your own, effectively turning them into zombies (or zeds) 🧟. This is useful if
 you need to hook into some existing code that has no other way to be modified.
 
-⚠ You probably don't want to use this library in live production code. Its original
-intent is to help mock low-level Erlang operations.
+> [!CAUTION]
+> You don't want to use this library in live production code. Its original
+> intent is to help hook into low-level Erlang operations for testing and
+> experimentation purposes.
 
 ### Built With
 
