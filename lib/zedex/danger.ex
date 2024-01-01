@@ -17,10 +17,10 @@ defmodule Zedex.Danger do
   @doc """
   Replace calls to one module function with calls to another in a specific MFA.
 
-  # ⚠ Replacing calls is generally not recommended as any changes to the underlying
-  # code being replaced could break the intended behaviour. It mainly exists to
-  # replace NIFs and BIFs (e.g. send) that can't normally be hooked into by
-  # replacing the function directly.
+  ⚠ Replacing calls is generally not recommended as any changes to the underlying
+  code being replaced could break the intended behaviour. It mainly exists to
+  replace NIFs and BIFs (e.g. send) that can't normally be hooked into by
+  replacing the function directly.
 
   ### Examples
 
