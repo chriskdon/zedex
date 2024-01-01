@@ -44,6 +44,20 @@ defmodule ZedexTest do
 
       assert "Hello World: 223" == TestModule1.test_func_1(123)
     end
+
+    test "returns :not_found if the module is not found" do
+      assert {:error, :not_found} ==
+               Zedex.replace_with({DoesNotExist, :test_func_1, 1}, fn a ->
+                 "Hello World: #{a}"
+               end)
+    end
+
+    test "returns :not_found if the function is not found" do
+      assert {:error, :not_found} ==
+               Zedex.replace_with({DoesNotExist, :test_func_1, 1}, fn a ->
+                 "Hello World: #{a}"
+               end)
+    end
   end
 
   describe "replace/1" do
@@ -102,6 +116,37 @@ defmodule ZedexTest do
 
       assert "[#{TestModule2}] Test Func 2 - 123" == TestModule1.test_func_1(123)
       assert "Hello World: 456" == TestModule2.test_func_1(456)
+    end
+
+    test "returns :not_found if the module is not found" do
+      mfa_does_not_exist = {DoesNotExist, :does_not_exist, 1}
+
+      assert {:error, {:not_found, mfa_does_not_exist}} ==
+               Zedex.replace([
+                 {{TestModule1, :test_func_1, 1}, fn a -> "Hello World: #{a}" end},
+                 {mfa_does_not_exist, fn a -> "Hello World: #{a}" end}
+               ])
+    end
+
+    test "returns :not_found if the function is not found" do
+      mfa_does_not_exist = {TestModule1, :does_not_exist, 1}
+
+      assert {:error, {:not_found, mfa_does_not_exist}} ==
+               Zedex.replace([
+                 {{TestModule1, :test_func_1, 1}, fn a -> "Hello World: #{a}" end},
+                 {mfa_does_not_exist, fn a -> "Hello World: #{a}" end}
+               ])
+    end
+
+    test "returns first error if multiple are not found" do
+      mfa_does_not_exist_1 = {TestModule1, :does_not_exist, 1}
+      mfa_does_not_exist_2 = {DoesNotExist, :does_not_exist, 1}
+
+      assert {:error, {:not_found, mfa_does_not_exist_1}} ==
+               Zedex.replace([
+                 {mfa_does_not_exist_1, fn a -> "Hello World: #{a}" end},
+                 {mfa_does_not_exist_2, fn a -> "Hello World: #{a}" end}
+               ])
     end
   end
 

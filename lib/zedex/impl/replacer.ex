@@ -24,14 +24,15 @@ defmodule Zedex.Impl.Replacer do
 
   @spec replace_with(mfa(), Zedex.callback()) :: :ok
   def replace_with(mfa, callback) do
-    case patched?(mfa) do
+    if patched?(mfa) do
       # If the mfa is already patched we can simply replace the callback in ETS
-      true ->
-        store_patched_callback(mfa, callback)
-        :ok
-
-      _ ->
-        replace([{mfa, callback}])
+      store_patched_callback(mfa, callback)
+      :ok
+    else
+      case replace([{mfa, callback}]) do
+        :ok -> :ok
+        {:error, {:not_found, ^mfa}} -> {:error, :not_found}
+      end
     end
   end
 
@@ -75,13 +76,27 @@ defmodule Zedex.Impl.Replacer do
 
   @impl GenServer
   def handle_call({:replace, replacements}, _from, state) do
-    replacements
-    |> Enum.group_by(fn {{module, _, _}, _} -> module end)
-    |> Enum.each(fn {mod, mod_replacements} ->
-      :ok = replace_module(mod, mod_replacements)
-    end)
+    # FIXME: No replacement should be done unless we are sure we've found
+    #        all the modules. Do this in two steps: first find and generate
+    #        the patched modules, then load them.
+    result =
+      replacements
+      |> Enum.group_by(fn {{module, _, _}, _} -> module end)
+      |> Enum.reduce_while(:ok, fn {mod, mod_replacements}, acc ->
+        case replace_module(mod, mod_replacements) do
+          :ok ->
+            {:cont, acc}
 
-    {:reply, :ok, state}
+          {:error, {:module_not_found, _}} ->
+            {mfa, _} = List.first(mod_replacements)
+            {:halt, {:error, {:not_found, mfa}}}
+
+          {:error, {:not_found, _} = reason} ->
+            {:halt, {:error, reason}}
+        end
+      end)
+
+    {:reply, result, state}
   end
 
   @impl GenServer
@@ -125,7 +140,7 @@ defmodule Zedex.Impl.Replacer do
 
         {:reply, :ok, state}
 
-      {:error, :module_not_found} ->
+      {:error, {:not_found, _}} ->
         {:reply, {:error, :caller_not_found}, state}
 
       {:error, reason} when reason in [:caller_not_found, :called_not_found] ->
@@ -260,57 +275,66 @@ defmodule Zedex.Impl.Replacer do
   defp replace_module(module, replacements) do
     :ok = assert_replacements(replacements)
 
-    {original_module_code, patched_module_code, callbacks} =
-      generate_patched_module(module, replacements)
+    with {:ok, {original_module_code, patched_module_code, callbacks}} <-
+           generate_patched_module(module, replacements) do
+      Enum.each(callbacks, fn {mfa, callback} ->
+        store_patched_callback(mfa, callback)
+      end)
 
-    Enum.each(callbacks, fn {mfa, callback} ->
-      store_patched_callback(mfa, callback)
-    end)
+      if Store.get_original_module(module) == {:ok, nil} do
+        :ok =
+          Store.store_original_module(
+            module,
+            find_filename(module),
+            original_module_code
+          )
+      end
 
-    if Store.get_original_module(module) == {:ok, nil} do
       :ok =
-        Store.store_original_module(
+        load_beam_code(
           module,
-          find_filename(module),
-          original_module_code
+          "#{@patched_module_filename_prefix}(#{module})",
+          patched_module_code
         )
+
+      :ok
     end
-
-    :ok =
-      load_beam_code(
-        module,
-        "#{@patched_module_filename_prefix}(#{module})",
-        patched_module_code
-      )
-
-    :ok
   end
 
   defp generate_patched_module(module, replacements) do
-    with {:ok, %{beam_code: beam_code, ast: module_ast}} <- get_module_code(module) do
-      # TODO: Error if we can't find a function to replace
+    case get_module_code(module) do
+      {:ok, %{beam_code: beam_code, ast: module_ast}} ->
+        %{
+          forms: %{start: start_forms, exports: export_forms, rest: rest_forms},
+          replacements: remaining_replacements,
+          callbacks: callbacks
+        } =
+          Enum.reduce(
+            module_ast,
+            %{
+              module: module,
+              replacements: replacements,
+              forms: %{start: [], exports: [], rest: []},
+              callbacks: []
+            },
+            fn form, state ->
+              handle_form_patch(:erl_syntax.type(form), form, state)
+            end
+          )
 
-      %{
-        forms: %{start: start_forms, exports: export_forms, rest: rest_forms},
-        callbacks: callbacks
-      } =
-        Enum.reduce(
-          module_ast,
-          %{
-            module: module,
-            replacements: replacements,
-            forms: %{start: [], exports: [], rest: []},
-            callbacks: []
-          },
-          fn form, state ->
-            handle_form_patch(:erl_syntax.type(form), form, state)
-          end
-        )
+        case remaining_replacements do
+          [] ->
+            module_forms = start_forms ++ export_forms ++ rest_forms
+            patched_beam_code = forms_to_beam_code(module_forms)
 
-      module_forms = start_forms ++ export_forms ++ rest_forms
-      patched_beam_code = forms_to_beam_code(module_forms)
+            {:ok, {beam_code, patched_beam_code, callbacks}}
 
-      {beam_code, patched_beam_code, callbacks}
+          [{not_found_mfa, _} | _] ->
+            {:error, {:not_found, not_found_mfa}}
+        end
+
+      {:error, {:not_found, module}} ->
+        {:error, {:module_not_found, module}}
     end
   end
 
@@ -324,7 +348,7 @@ defmodule Zedex.Impl.Replacer do
       :none ->
         %{state | forms: %{forms | rest: rest_forms ++ [form]}}
 
-      replacement_callback ->
+      {_, replacement_callback} = replacement ->
         {replaced_est, original_est} = do_replace(mfa, form)
         export_original_est = SyntaxHelpers.export_function_est(original_est)
 
@@ -335,8 +359,9 @@ defmodule Zedex.Impl.Replacer do
         }
 
         callbacks = callbacks ++ [{mfa, replacement_callback}]
+        remaining_replacements = replacements -- [replacement]
 
-        %{state | forms: module_forms, callbacks: callbacks}
+        %{state | forms: module_forms, callbacks: callbacks, replacements: remaining_replacements}
     end
   end
 
@@ -381,7 +406,7 @@ defmodule Zedex.Impl.Replacer do
             {:ok, %{state: :unpatched, beam_code: beam_code, ast: ast}}
 
           :error ->
-            {:error, :module_not_found}
+            {:error, {:not_found, module}}
         end
 
       %{beam_code: _, ast: _} = patched_module ->
@@ -432,7 +457,7 @@ defmodule Zedex.Impl.Replacer do
              o_f == func and o_a == arity
            end
          ) do
-      [{_, replacement_mfa}] -> replacement_mfa
+      [replacement] -> replacement
       [] -> :none
       _ -> throw("Duplicate replacements")
     end

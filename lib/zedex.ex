@@ -19,7 +19,7 @@ defmodule Zedex do
         {{SomeModule2, :some_func_1, 2}, fn a, b -> a + b end},
       ])
   """
-  @spec replace(list(replacement())) :: :ok
+  @spec replace(list(replacement())) :: :ok | {:error, {:not_found, list(mfa())}}
   defdelegate replace(replacements), to: Replacer
 
   @doc """
@@ -32,7 +32,7 @@ defmodule Zedex do
       replace_with({SomeModule1, :some_fun_1, 1}, fn a -> a + 1 end)
 
   """
-  @spec replace_with(mfa(), callback()) :: :ok
+  @spec replace_with(mfa(), callback()) :: :ok | {:error, :not_found}
   defdelegate replace_with(mfa, callback), to: Replacer
 
   @doc """
