@@ -244,6 +244,7 @@ defmodule Zedex.Impl.Replacer do
 
     # Remove old module
     :code.purge(module)
+    :code.delete(module)
 
     # Load new module code
     {:module, ^module} = :code.load_binary(module, String.to_charlist(filename), beam_code)
